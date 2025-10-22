@@ -4,8 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QAction,
     QApplication,
     QFileDialog,
     QLabel,

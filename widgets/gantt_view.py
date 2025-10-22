@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Dict
 
 from PyQt6.QtCore import QLineF, QPointF, Qt
-from PyQt6.QtGui import QBrush, QColor, QPen
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from controllers.event_controller import EventController
@@ -21,7 +21,7 @@ class GanttChartView(QGraphicsView):
         self.ctrl = event_ctrl
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
-        self.setRenderHint(self.RenderHint.Antialiasing)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     def draw(self) -> None:
         """イベント群を矩形として描画し直す。"""

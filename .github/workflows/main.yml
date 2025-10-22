@@ -1,0 +1,31 @@
+name: Lint & Type Check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  lint-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # 1️⃣ Setup uv (Python環境 & 依存解決)
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Sync dependencies
+        run: uv sync
+
+      # 2️⃣ Ruff lint
+      - name: Run ruff check
+        run: uv run ruff check .
+
+      # 3️⃣ Ty type check
+      - name: Run ty check (ignore type errors)
+        run: uv run ty check . --exit-zero

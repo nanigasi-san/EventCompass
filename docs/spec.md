@@ -237,7 +237,7 @@ class ItemController:
 
     # Filters
     def all_tags(self) -> list[str]: ...
-    def filter_by_tags(self, tags: list[str]) -> list[dict]: ...  # AND/ORはUI指定
+    def filter_by_tags(self, tags: list[str], match_all: bool = True) -> list[dict]: ...  # match_all=TrueでAND
     def filter_by_manager(self, manager: str) -> list[dict]: ...
 
     def save(self) -> None: save_json(self.filepath, self.data)
@@ -268,7 +268,7 @@ class EventCompassApp(QMainWindow):
     def _connect_signals(self): ...  # 保存・編集・フィルタ等
 
     # Actions
-    def action_open(self): ...
+    def action_open(self): ...  # 選択された data ディレクトリから3JSONを読込
     def action_save(self):
         # 3コントローラを順に保存
         self.member_ctrl.save(); self.event_ctrl.save(); self.item_ctrl.save()
@@ -303,6 +303,7 @@ class TagFilter(QWidget):
         self._build()
 
     def _build(self): ...
+    def refresh(self) -> None: ...  # コントローラのタグ一覧を再読込
     def selected_tags(self) -> list[str]: ...
 ```
 

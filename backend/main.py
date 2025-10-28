@@ -29,8 +29,8 @@ def get_store() -> SQLiteStore:
 
 
 StoreDep = Annotated[SQLiteStore, Depends(get_store)]
-MemberPartFilter = Annotated[str | None, Query(default=None, description="担当パートでフィルタ")]
-MaterialPartFilter = Annotated[str | None, Query(default=None, description="使用パートでフィルタ")]
+MemberPartFilter = Annotated[str | None, Query(description="担当パートでフィルタ")]
+MaterialPartFilter = Annotated[str | None, Query(description="使用パートでフィルタ")]
 
 
 def _not_found(detail: str) -> HTTPException:
@@ -139,3 +139,4 @@ def delete_material(material_id: int, store: StoreDep) -> None:
         store.delete_material(material_id)
     except KeyError as exc:
         raise _not_found(MATERIAL_NOT_FOUND_DETAIL) from exc
+

@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for API tests."""
+"""API テスト共通の pytest フィクスチャ。"""
 
 # ruff: noqa: I001
 
@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from pathlib import Path
 import sys
 
+# ルートディレクトリを import パスへ追加し、テストから backend パッケージを参照できるようにする
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
@@ -19,7 +20,7 @@ from backend.store import SQLiteStore
 
 
 def _seed_members(store: SQLiteStore) -> None:
-    """Populate the in-memory database with sample members."""
+    """テスト用にメンバーの初期データを投入する。"""
 
     members = [
         MemberCreate(
@@ -46,7 +47,7 @@ def _seed_members(store: SQLiteStore) -> None:
 
 
 def _seed_materials(store: SQLiteStore) -> None:
-    """Populate the in-memory database with sample materials."""
+    """テスト用に資材の初期データを投入する。"""
 
     materials = [
         MaterialCreate(name="Tent", part="Reception", quantity=2),
@@ -59,7 +60,7 @@ def _seed_materials(store: SQLiteStore) -> None:
 
 @pytest.fixture()
 def seeded_store(tmp_path: Path) -> Iterator[SQLiteStore]:
-    """Provide a SQLiteStore preloaded with sample data for each test."""
+    """毎回クリアな SQLiteStore を生成し、サンプルデータ入りで提供する。"""
 
     store = SQLiteStore(tmp_path / "eventcompass.db")
     _seed_members(store)
@@ -72,7 +73,7 @@ def seeded_store(tmp_path: Path) -> Iterator[SQLiteStore]:
 
 @pytest.fixture()
 def client(seeded_store: SQLiteStore) -> Iterator[TestClient]:
-    """Yield a FastAPI TestClient bound to the seeded store."""
+    """シード済みストアを注入した TestClient を生成する。"""
 
     app.dependency_overrides[get_store] = lambda: seeded_store
     with TestClient(app) as test_client:

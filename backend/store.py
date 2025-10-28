@@ -1,4 +1,4 @@
-"""SQLite ベースの永続化レイヤー。"""
+"""SQLite バックエンド向けの永続化レイヤー。"""
 
 from __future__ import annotations
 
@@ -19,25 +19,31 @@ from .models import (
 
 
 class SQLiteStore:
-    """SQLite3 を利用したデータストア。"""
+    """SQLite3 を利用したシンプルなストア実装。"""
 
     def __init__(self, database: str | Path) -> None:
         self._database = str(database)
+        # 複数スレッドから同時にアクセスされても整合性を保つためのロック
         self._lock = Lock()
         self._conn: sqlite3.Connection | None = sqlite3.connect(
             self._database, check_same_thread=False
         )
+        # クエリ結果を辞書風に扱えるようにする
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
 
-    # -- 初期化 -----------------------------------------------------------
+    # -- 内部ユーティリティ -------------------------------------------------
     def _connection(self) -> sqlite3.Connection:
+        """閉じていない SQLite 接続を取得する。"""
+
         conn = self._conn
         if conn is None:  # pragma: no cover - defensive
             raise RuntimeError("ストアは既にクローズされています")
         return conn
 
     def _init_schema(self) -> None:
+        """必要なテーブルが無ければ作成する。"""
+
         with self._lock:
             conn = self._connection()
             conn.executescript(
@@ -70,6 +76,7 @@ class SQLiteStore:
         )
         params: Iterable[object] = ()
         if part is not None:
+            # LOWER 比較で大文字小文字を区別せずにフィルタする
             query += " WHERE lower(part) = lower(?)"
             params = (part,)
         query += " ORDER BY id"
@@ -114,6 +121,7 @@ class SQLiteStore:
     def update_member(self, member_id: int, payload: MemberUpdate) -> Member:
         update_data = payload.model_dump(exclude_unset=True)
         if not update_data:
+            # 変更が無ければ既存データをそのまま返す
             return self.get_member(member_id)
 
         columns: list[str] = []
@@ -129,6 +137,7 @@ class SQLiteStore:
             params.append(update_data["position"])
         contact_update = update_data.pop("contact", None)
         if contact_update is not None:
+            # dict が来ても ContactInfo が来ても扱えるように正規化する
             contact_model = (
                 contact_update
                 if isinstance(contact_update, ContactInfo)
@@ -165,6 +174,8 @@ class SQLiteStore:
             self._connection().commit()
 
     def _row_to_member(self, row: sqlite3.Row) -> Member:
+        """行データから Member モデルを構築する。"""
+
         contact = ContactInfo(
             phone=row["contact_phone"],
             email=row["contact_email"],
@@ -250,6 +261,8 @@ class SQLiteStore:
             self._connection().commit()
 
     def _row_to_material(self, row: sqlite3.Row) -> Material:
+        """行データから Material モデルを構築する。"""
+
         return Material(
             id=row["id"],
             name=row["name"],
@@ -259,7 +272,7 @@ class SQLiteStore:
 
     # -- Utilities ---------------------------------------------------------
     def reset(self) -> None:
-        """テスト用にデータを初期化する。"""
+        """テスト用に全データとオートインクリメントを初期化する。"""
 
         with self._lock:
             conn = self._connection()

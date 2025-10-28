@@ -1,4 +1,4 @@
-"""Member API tests."""
+"""メンバー API の振る舞いを検証するテスト。"""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ def test_list_members_filters_part_case_insensitively(client: TestClient) -> Non
     names = {item["name"] for item in response.json()}
     assert names == {"Kento Tanaka", "Sora Suzuki"}
 
+    # フィルタ挙動に新規データが反映されることを確認するため、追加でメンバーを登録
     create_response = client.post(
         "/members",
         json={

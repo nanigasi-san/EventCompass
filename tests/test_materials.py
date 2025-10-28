@@ -1,4 +1,4 @@
-"""Material API tests."""
+"""資材 API の振る舞いを検証するテスト。"""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ def test_list_materials_filters_part_case_insensitively(client: TestClient) -> N
     names = {item["name"] for item in response.json()}
     assert names == {"Tent", "Transceiver"}
 
+    # 追加登録した資材がフィルタ結果へ反映されることをチェックする
     create_response = client.post(
         "/materials",
         json={"name": "Stage Light", "part": "Lighting", "quantity": 6},

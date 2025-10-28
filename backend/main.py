@@ -1,4 +1,4 @@
-"""FastAPI application for EventCompass backend."""
+"""EventCompass バックエンドの FastAPI アプリケーション。"""
 
 from __future__ import annotations
 
@@ -19,22 +19,24 @@ from .store import SQLiteStore
 
 app = FastAPI(title="EventCompass Backend", version="1.0.0")
 _default_db_path = Path(__file__).resolve().parent / "eventcompass.db"
+# アプリ全体で再利用する単一のストアインスタンス
 _store = SQLiteStore(_default_db_path)
 
 
 def get_store() -> SQLiteStore:
-    """アプリケーション全体で共有されるストアを返す。"""
+    """依存解決用に共有しているストアを返す。"""
 
     return _store
 
 
+# 依存性注入やクエリパラメータの型定義に使うエイリアス
 StoreDep = Annotated[SQLiteStore, Depends(get_store)]
-MemberPartFilter = Annotated[str | None, Query(description="担当パートでフィルタ")]
-MaterialPartFilter = Annotated[str | None, Query(description="使用パートでフィルタ")]
+MemberPartFilter = Annotated[str | None, Query(description="担当パートによるフィルタ")]
+MaterialPartFilter = Annotated[str | None, Query(description="担当パートによるフィルタ")]
 
 
 def _not_found(detail: str) -> HTTPException:
-    """404エラーを生成する補助関数。"""
+    """404 応答を組み立てるヘルパー。"""
 
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
@@ -63,7 +65,7 @@ def get_member(member_id: int, store: StoreDep) -> Member:
 
 @app.post("/members", response_model=Member, status_code=status.HTTP_201_CREATED)
 def create_member(payload: MemberCreate, store: StoreDep) -> Member:
-    """メンバーを追加する。"""
+    """メンバーを新規登録する。"""
 
     return store.create_member(payload)
 
@@ -112,7 +114,7 @@ def get_material(material_id: int, store: StoreDep) -> Material:
 
 @app.post("/materials", response_model=Material, status_code=status.HTTP_201_CREATED)
 def create_material(payload: MaterialCreate, store: StoreDep) -> Material:
-    """資材を追加する。"""
+    """資材を新規登録する。"""
 
     return store.create_material(payload)
 
@@ -139,4 +141,3 @@ def delete_material(material_id: int, store: StoreDep) -> None:
         store.delete_material(material_id)
     except KeyError as exc:
         raise _not_found(MATERIAL_NOT_FOUND_DETAIL) from exc
-

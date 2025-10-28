@@ -1,4 +1,4 @@
-"""データモデル定義。"""
+"""イベント情報で扱うデータモデル。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ContactInfo(BaseModel):
-    """連絡先情報。"""
+    """連絡先情報。空の場合は None が入る。"""
 
     phone: str | None = None
     email: str | None = None
@@ -14,7 +14,7 @@ class ContactInfo(BaseModel):
 
 
 class MemberBase(BaseModel):
-    """メンバーの共通属性。"""
+    """メンバー共通のプロパティ。"""
 
     name: str
     part: str
@@ -23,19 +23,19 @@ class MemberBase(BaseModel):
 
 
 class Member(MemberBase):
-    """メンバー情報。"""
+    """永続化済みメンバー。"""
 
     id: int
 
 
 class MemberCreate(MemberBase):
-    """メンバー作成時の入力。"""
+    """メンバー作成用のリクエストボディ。"""
 
     pass
 
 
 class MemberUpdate(BaseModel):
-    """メンバー更新時の入力。"""
+    """メンバー更新用のリクエストボディ。未指定項目は更新しない。"""
 
     name: str | None = None
     part: str | None = None
@@ -44,7 +44,7 @@ class MemberUpdate(BaseModel):
 
 
 class MaterialBase(BaseModel):
-    """資材の共通属性。"""
+    """資材共通のプロパティ。"""
 
     name: str
     part: str
@@ -52,19 +52,19 @@ class MaterialBase(BaseModel):
 
 
 class Material(MaterialBase):
-    """資材情報。"""
+    """永続化済み資材。"""
 
     id: int
 
 
 class MaterialCreate(MaterialBase):
-    """資材作成時の入力。"""
+    """資材作成用のリクエストボディ。"""
 
     pass
 
 
 class MaterialUpdate(BaseModel):
-    """資材更新時の入力。"""
+    """資材更新用のリクエストボディ。未指定項目は更新しない。"""
 
     name: str | None = None
     part: str | None = None

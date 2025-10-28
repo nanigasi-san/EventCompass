@@ -8,9 +8,7 @@ Python 3.12 以上を用意し、以下のコマンドで依存関係をイン�
 `uv` を利用します。
 
 ```bash
-uv venv
-source .venv/bin/activate
-uv pip install -e .[dev]
+uv sync
 ```
 
 ## サーバーの起動方法

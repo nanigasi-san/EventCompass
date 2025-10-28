@@ -1,0 +1,4 @@
+__pycache__
+.venv
+eventcompass.egg-info
+*/eventcompass.db

@@ -107,16 +107,12 @@ class SQLiteStore:
             )
             self._connection().commit()
             member_id = cursor.lastrowid
-        return Member(
-            id=member_id,
-            name=payload.name,
-            part=payload.part,
-            position=payload.position,
-            contact=contact,
-        )
+        data = payload.model_dump()
+        data["id"] = member_id
+        return Member(**data)
 
     def update_member(self, member_id: int, payload: MemberUpdate) -> Member:
-        update_data = payload.to_update_dict()
+        update_data = payload.model_dump(exclude_unset=True)
         if not update_data:
             return self.get_member(member_id)
 
@@ -131,10 +127,13 @@ class SQLiteStore:
         if "position" in update_data:
             columns.append("position = ?")
             params.append(update_data["position"])
-        contact_update = update_data.get("contact")
+        contact_update = update_data.pop("contact", None)
         if contact_update is not None:
-            if not isinstance(contact_update, ContactInfo):
-                contact_update = ContactInfo.from_dict(contact_update)
+            contact_model = (
+                contact_update
+                if isinstance(contact_update, ContactInfo)
+                else ContactInfo.model_validate(contact_update)
+            )
             columns.extend(
                 [
                     "contact_phone = ?",
@@ -142,7 +141,9 @@ class SQLiteStore:
                     "contact_note = ?",
                 ]
             )
-            params.extend([contact_update.phone, contact_update.email, contact_update.note])
+            params.extend(
+                [contact_model.phone, contact_model.email, contact_model.note]
+            )
         with self._lock:
             cursor = self._connection().execute(
                 f"UPDATE members SET {', '.join(columns)} WHERE id = ?",
@@ -207,15 +208,12 @@ class SQLiteStore:
             )
             self._connection().commit()
             material_id = cursor.lastrowid
-        return Material(
-            id=material_id,
-            name=payload.name,
-            part=payload.part,
-            quantity=payload.quantity,
-        )
+        data = payload.model_dump()
+        data["id"] = material_id
+        return Material(**data)
 
     def update_material(self, material_id: int, payload: MaterialUpdate) -> Material:
-        update_data = payload.to_update_dict()
+        update_data = payload.model_dump(exclude_unset=True)
         if not update_data:
             return self.get_material(material_id)
 

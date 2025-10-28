@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from .models import (
     Material,
@@ -18,6 +19,15 @@ from .models import (
 from .store import SQLiteStore
 
 app = FastAPI(title="EventCompass Backend", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 _default_db_path = Path(__file__).resolve().parent / "eventcompass.db"
 # アプリ全体で再利用する単一のストアインスタンス
 _store = SQLiteStore(_default_db_path)

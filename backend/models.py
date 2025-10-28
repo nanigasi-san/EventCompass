@@ -1,67 +1,165 @@
-"""Pydantic models for the EventCompass backend."""
+"""データモデル定義。"""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
+from typing import Any
 
 
-class ContactInfo(BaseModel):
-    """連絡先情報を表すモデル。"""
+@dataclass(slots=True)
+class ContactInfo:
+    """連絡先情報。"""
 
-    phone: str | None = Field(default=None, description="電話番号")
-    email: str | None = Field(default=None, description="メールアドレス")
-    note: str | None = Field(default=None, description="備考")
+    phone: str | None = None
+    email: str | None = None
+    note: str | None = None
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | ContactInfo | None) -> ContactInfo:
+        """辞書から `ContactInfo` を生成する。"""
 
-class MemberBase(BaseModel):
-    """メンバー情報の共通部分。"""
+        if data is None:
+            return cls()
+        if isinstance(data, ContactInfo):
+            return data
+        return cls(
+            phone=data.get("phone"),
+            email=data.get("email"),
+            note=data.get("note"),
+        )
 
-    name: str = Field(..., min_length=1, description="氏名")
-    part: str = Field(..., min_length=1, description="担当パート")
-    position: str = Field(..., min_length=1, description="役職")
-    contact: ContactInfo = Field(default_factory=ContactInfo, description="連絡先")
+    def to_dict(self) -> dict[str, Any]:
+        """辞書形式へ変換する。"""
 
-
-class Member(MemberBase):
-    """メンバーの完全情報。"""
-
-    id: int = Field(..., ge=1, description="メンバーID")
-
-
-class MemberCreate(MemberBase):
-    """メンバー作成時に受け付ける情報。"""
-
-
-class MemberUpdate(BaseModel):
-    """メンバー更新時に受け付ける情報。"""
-
-    name: str | None = Field(default=None, description="氏名")
-    part: str | None = Field(default=None, description="担当パート")
-    position: str | None = Field(default=None, description="役職")
-    contact: ContactInfo | None = Field(default=None, description="連絡先")
+        return {"phone": self.phone, "email": self.email, "note": self.note}
 
 
-class MaterialBase(BaseModel):
-    """資材情報の共通部分。"""
+@dataclass(slots=True)
+class Member:
+    """メンバー情報。"""
 
-    name: str = Field(..., min_length=1, description="資材名")
-    part: str = Field(..., min_length=1, description="使用パート")
-    quantity: int = Field(..., ge=0, description="数量")
+    id: int
+    name: str
+    part: str
+    position: str
+    contact: ContactInfo = field(default_factory=ContactInfo)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "part": self.part,
+            "position": self.position,
+            "contact": self.contact.to_dict(),
+        }
 
 
-class Material(MaterialBase):
-    """資材の完全情報。"""
+@dataclass(slots=True)
+class MemberCreate:
+    """メンバー作成時の入力。"""
 
-    id: int = Field(..., ge=1, description="資材ID")
+    name: str
+    part: str
+    position: str
+    contact: ContactInfo = field(default_factory=ContactInfo)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MemberCreate:
+        contact = ContactInfo.from_dict(data.get("contact"))
+        return cls(
+            name=data["name"],
+            part=data["part"],
+            position=data["position"],
+            contact=contact,
+        )
 
 
-class MaterialCreate(MaterialBase):
-    """資材作成時に受け付ける情報。"""
+@dataclass(slots=True)
+class MemberUpdate:
+    """メンバー更新時の入力。"""
+
+    name: str | None = None
+    part: str | None = None
+    position: str | None = None
+    contact: ContactInfo | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MemberUpdate:
+        contact = data.get("contact")
+        return cls(
+            name=data.get("name"),
+            part=data.get("part"),
+            position=data.get("position"),
+            contact=ContactInfo.from_dict(contact) if contact is not None else None,
+        )
+
+    def to_update_dict(self) -> dict[str, Any]:
+        update: dict[str, Any] = {}
+        if self.name is not None:
+            update["name"] = self.name
+        if self.part is not None:
+            update["part"] = self.part
+        if self.position is not None:
+            update["position"] = self.position
+        if self.contact is not None:
+            update["contact"] = self.contact
+        return update
 
 
-class MaterialUpdate(BaseModel):
-    """資材更新時に受け付ける情報。"""
+@dataclass(slots=True)
+class Material:
+    """資材情報。"""
 
-    name: str | None = Field(default=None, description="資材名")
-    part: str | None = Field(default=None, description="使用パート")
-    quantity: int | None = Field(default=None, ge=0, description="数量")
+    id: int
+    name: str
+    part: str
+    quantity: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "part": self.part,
+            "quantity": self.quantity,
+        }
+
+
+@dataclass(slots=True)
+class MaterialCreate:
+    """資材作成時の入力。"""
+
+    name: str
+    part: str
+    quantity: int
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MaterialCreate:
+        return cls(name=data["name"], part=data["part"], quantity=int(data["quantity"]))
+
+
+@dataclass(slots=True)
+class MaterialUpdate:
+    """資材更新時の入力。"""
+
+    name: str | None = None
+    part: str | None = None
+    quantity: int | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MaterialUpdate:
+        quantity = data.get("quantity")
+        return cls(
+            name=data.get("name"),
+            part=data.get("part"),
+            quantity=int(quantity) if quantity is not None else None,
+        )
+
+    def to_update_dict(self) -> dict[str, Any]:
+        update: dict[str, Any] = {}
+        if self.name is not None:
+            update["name"] = self.name
+        if self.part is not None:
+            update["part"] = self.part
+        if self.quantity is not None:
+            update["quantity"] = self.quantity
+        return update

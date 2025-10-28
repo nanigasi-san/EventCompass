@@ -116,7 +116,7 @@ class SQLiteStore:
         )
 
     def update_member(self, member_id: int, payload: MemberUpdate) -> Member:
-        update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
+        update_data = payload.to_update_dict()
         if not update_data:
             return self.get_member(member_id)
 
@@ -131,8 +131,10 @@ class SQLiteStore:
         if "position" in update_data:
             columns.append("position = ?")
             params.append(update_data["position"])
-        if "contact" in update_data:
-            contact = ContactInfo.model_validate(update_data["contact"])
+        contact_update = update_data.get("contact")
+        if contact_update is not None:
+            if not isinstance(contact_update, ContactInfo):
+                contact_update = ContactInfo.from_dict(contact_update)
             columns.extend(
                 [
                     "contact_phone = ?",
@@ -140,7 +142,7 @@ class SQLiteStore:
                     "contact_note = ?",
                 ]
             )
-            params.extend([contact.phone, contact.email, contact.note])
+            params.extend([contact_update.phone, contact_update.email, contact_update.note])
         with self._lock:
             cursor = self._connection().execute(
                 f"UPDATE members SET {', '.join(columns)} WHERE id = ?",
@@ -213,7 +215,7 @@ class SQLiteStore:
         )
 
     def update_material(self, material_id: int, payload: MaterialUpdate) -> Material:
-        update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
+        update_data = payload.to_update_dict()
         if not update_data:
             return self.get_material(material_id)
 

@@ -1,28 +1,30 @@
-"""�����o�[API�̃e�X�g�B"""
+"""Member API tests."""
 
 from __future__ import annotations
 
 from http import HTTPStatus
 
 import pytest
+from starlette.testclient import TestClient
 
 from backend.models import ContactInfo
+from backend.store import SQLiteStore
 
 
-def test_list_members_returns_seed_data_in_id_order(client) -> None:
+def test_list_members_returns_seed_data_in_id_order(client: TestClient) -> None:
     response = client.get("/members")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert [member["id"] for member in payload] == [1, 2, 3]
-    assert payload[0]["name"] == "山田海音"
-    assert payload[1]["part"] == "コース"
+    assert payload[0]["name"] == "Kento Tanaka"
+    assert payload[1]["part"] == "Course"
 
 
-def test_list_members_filters_part_case_insensitively(client) -> None:
-    response = client.get("/members", params={"part": "受付"})
+def test_list_members_filters_part_case_insensitively(client: TestClient) -> None:
+    response = client.get("/members", params={"part": "Reception"})
     assert response.status_code == HTTPStatus.OK
     names = {item["name"] for item in response.json()}
-    assert names == {"山田海音", "鈴木紗良"}
+    assert names == {"Kento Tanaka", "Sora Suzuki"}
 
     create_response = client.post(
         "/members",
@@ -42,21 +44,21 @@ def test_list_members_filters_part_case_insensitively(client) -> None:
     assert payload[0]["part"] == "Percussion"
 
 
-def test_get_member_returns_single_record(client) -> None:
+def test_get_member_returns_single_record(client: TestClient) -> None:
     response = client.get("/members/1")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["name"] == "山田海音"
-    assert payload["contact"]["email"] == "yamada@example.com"
+    assert payload["name"] == "Kento Tanaka"
+    assert payload["contact"]["email"] == "tanaka@example.com"
 
 
-def test_create_member_assigns_new_id(client) -> None:
+def test_create_member_assigns_new_id(client: TestClient) -> None:
     response = client.post(
         "/members",
         json={
-            "name": "高橋光",
-            "part": "舞台",
-            "position": "サポート",
+            "name": "Hikari Takahashi",
+            "part": "Stage",
+            "position": "Support",
             "contact": {
                 "phone": "090-0000-0004",
                 "email": "takahashi@example.com",
@@ -73,30 +75,37 @@ def test_create_member_assigns_new_id(client) -> None:
     assert any(member["id"] == 4 for member in list_response.json())
 
 
-def test_update_member_merges_partial_payload(client) -> None:
+def test_update_member_merges_partial_payload(
+    client: TestClient, seeded_store: SQLiteStore
+) -> None:
     response = client.put(
         "/members/1",
         json={
-            "position": "ディレクター",
+            "position": "Director",
             "contact": {"phone": "080-1111-2222"},
         },
     )
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["position"] == "ディレクター"
+    assert payload["position"] == "Director"
     assert payload["contact"]["phone"] == "080-1111-2222"
     assert payload["contact"]["email"] is None
+    stored = seeded_store.get_member(1)
+    assert stored.contact.phone == "080-1111-2222"
+    assert stored.contact.email is None
 
 
-def test_update_member_with_empty_body_returns_current_state(client) -> None:
+def test_update_member_with_empty_body_returns_current_state(
+    client: TestClient,
+) -> None:
     response = client.put("/members/2", json={})
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["id"] == 2
-    assert payload["name"] == "佐藤陽向"
+    assert payload["name"] == "Haruka Sato"
 
 
-def test_delete_member_removes_record(client) -> None:
+def test_delete_member_removes_record(client: TestClient) -> None:
     delete_response = client.delete("/members/3")
     assert delete_response.status_code == HTTPStatus.NO_CONTENT
     follow_up = client.get("/members/3")
@@ -104,8 +113,8 @@ def test_delete_member_removes_record(client) -> None:
 
 
 @pytest.mark.parametrize("endpoint", ["/members/999", "/members/-1"])
-def test_update_member_not_found(client, endpoint: str) -> None:
-    response = client.put(endpoint, json={"position": "リーダー"})
+def test_update_member_not_found(client: TestClient, endpoint: str) -> None:
+    response = client.put(endpoint, json={"position": "Leader"})
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 

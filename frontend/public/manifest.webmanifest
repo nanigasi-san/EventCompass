@@ -1,0 +1,17 @@
+{
+  "name": "EventCompass",
+  "short_name": "EventCompass",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#101828",
+  "theme_color": "#2563eb",
+  "description": "イベント運営のメンバー・資材管理を行えるオフライン対応アプリ",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

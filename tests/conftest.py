@@ -1,6 +1,4 @@
-"""ストア操作を対象にした pytest フィクスチャ。"""
-
-# ruff: noqa: I001
+"""ストア周りを対象にした pytest フィクスチャ群。"""
 
 from __future__ import annotations
 
@@ -8,11 +6,13 @@ from collections.abc import Iterator
 from pathlib import Path
 import sys
 
-# ルートディレクトリを import パスへ追加し、テストから backend パッケージを参照できるようにする
+# ルートディレクトリを import パスに追加し、テストから backend パッケージを参照できるようにする
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
+from fastapi.testclient import TestClient
 
+from backend.main import app, get_store
 from backend.models import ContactInfo, MaterialCreate, MemberCreate
 from backend.store import SQLiteStore
 
@@ -58,7 +58,7 @@ def _seed_materials(store: SQLiteStore) -> None:
 
 @pytest.fixture()
 def seeded_store(tmp_path: Path) -> Iterator[SQLiteStore]:
-    """毎回クリアな SQLiteStore を生成し、サンプルデータ入りで提供する。"""
+    """一時ディレクトリに SQLiteStore を構成し、サンプルデータを保存する。"""
 
     store = SQLiteStore(tmp_path / "eventcompass.db")
     _seed_members(store)
@@ -67,3 +67,13 @@ def seeded_store(tmp_path: Path) -> Iterator[SQLiteStore]:
         yield store
     finally:
         store.close()
+
+
+@pytest.fixture()
+def client(seeded_store: SQLiteStore) -> Iterator[TestClient]:
+    """FastAPI の TestClient を生成し、依存リゾルバをテスト用ストアに差し替える。"""
+
+    app.dependency_overrides[get_store] = lambda: seeded_store
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.pop(get_store, None)

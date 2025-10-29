@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from pathlib import Path
-import sys
 
 # ルートディレクトリを import パスに追加し、テストから backend パッケージを参照できるようにする
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

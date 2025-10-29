@@ -1,4 +1,4 @@
-"""API テスト共通の pytest フィクスチャ。"""
+"""ストア操作を対象にした pytest フィクスチャ。"""
 
 # ruff: noqa: I001
 
@@ -12,9 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
-from starlette.testclient import TestClient
 
-from backend.main import app, get_store
 from backend.models import ContactInfo, MaterialCreate, MemberCreate
 from backend.store import SQLiteStore
 
@@ -69,13 +67,3 @@ def seeded_store(tmp_path: Path) -> Iterator[SQLiteStore]:
         yield store
     finally:
         store.close()
-
-
-@pytest.fixture()
-def client(seeded_store: SQLiteStore) -> Iterator[TestClient]:
-    """シード済みストアを注入した TestClient を生成する。"""
-
-    app.dependency_overrides[get_store] = lambda: seeded_store
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()

@@ -15,6 +15,14 @@ from .models import (
     Member,
     MemberCreate,
     MemberUpdate,
+    Schedule,
+    ScheduleCreate,
+    ScheduleUpdate,
+    Task,
+    TaskCreate,
+    TaskStatus,
+    TaskStatusUpdate,
+    TaskUpdate,
 )
 from .store import SQLiteStore
 
@@ -43,6 +51,11 @@ def get_store() -> SQLiteStore:
 StoreDep = Annotated[SQLiteStore, Depends(get_store)]
 MemberPartFilter = Annotated[str | None, Query(description="担当パートによるフィルタ")]
 MaterialPartFilter = Annotated[str | None, Query(description="担当パートによるフィルタ")]
+TaskStageFilter = Annotated[str | None, Query(description="タスクのステージによるフィルタ")]
+TaskStatusFilter = Annotated[
+    TaskStatus | None,
+    Query(description="タスクの状態によるフィルタ"),
+]
 
 
 def _not_found(detail: str) -> HTTPException:
@@ -53,6 +66,8 @@ def _not_found(detail: str) -> HTTPException:
 
 MEMBER_NOT_FOUND_DETAIL = "メンバーが見つかりません"
 MATERIAL_NOT_FOUND_DETAIL = "資材が見つかりません"
+SCHEDULE_NOT_FOUND_DETAIL = "スケジュールが見つかりません"
+TASK_NOT_FOUND_DETAIL = "タスクが見つかりません"
 
 
 # -- Member endpoints ------------------------------------------------------
@@ -151,3 +166,121 @@ def delete_material(material_id: int, store: StoreDep) -> None:
         store.delete_material(material_id)
     except KeyError as exc:
         raise _not_found(MATERIAL_NOT_FOUND_DETAIL) from exc
+
+
+# -- Schedule endpoints ----------------------------------------------------
+@app.get("/schedules", response_model=list[Schedule])
+def list_schedules(store: StoreDep) -> list[Schedule]:
+    """スケジュール一覧を取得する。"""
+
+    return store.list_schedules()
+
+
+@app.get("/schedules/{schedule_id}", response_model=Schedule)
+def get_schedule(schedule_id: int, store: StoreDep) -> Schedule:
+    """スケジュールの詳細を取得する。"""
+
+    try:
+        return store.get_schedule(schedule_id)
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+
+
+@app.post("/schedules", response_model=Schedule, status_code=status.HTTP_201_CREATED)
+def create_schedule(payload: ScheduleCreate, store: StoreDep) -> Schedule:
+    """スケジュールを新規登録する。"""
+
+    return store.create_schedule(payload)
+
+
+@app.put("/schedules/{schedule_id}", response_model=Schedule)
+def update_schedule(
+    schedule_id: int, payload: ScheduleUpdate, store: StoreDep
+) -> Schedule:
+    """スケジュール情報を更新する。"""
+
+    try:
+        return store.update_schedule(schedule_id, payload)
+    except KeyError as exc:
+        raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+
+
+@app.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_schedule(schedule_id: int, store: StoreDep) -> None:
+    """スケジュールを削除する。"""
+
+    try:
+        store.delete_schedule(schedule_id)
+    except KeyError as exc:
+        raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+
+
+@app.get("/schedules/{schedule_id}/tasks", response_model=list[Task])
+def list_tasks(
+    schedule_id: int,
+    store: StoreDep,
+    stage: TaskStageFilter = None,
+    status: TaskStatusFilter = None,
+) -> list[Task]:
+    """スケジュールに紐づくタスク一覧を取得する。"""
+
+    try:
+        return store.list_tasks(schedule_id, stage=stage, status=status)
+    except KeyError as exc:
+        raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+
+
+@app.post(
+    "/schedules/{schedule_id}/tasks",
+    response_model=Task,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_task(schedule_id: int, payload: TaskCreate, store: StoreDep) -> Task:
+    """指定したスケジュールにタスクを追加する。"""
+
+    try:
+        return store.create_task(schedule_id, payload)
+    except KeyError as exc:
+        raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+
+
+@app.get("/tasks/{task_id}", response_model=Task)
+def get_task(task_id: int, store: StoreDep) -> Task:
+    """タスク詳細を取得する。"""
+
+    try:
+        return store.get_task(task_id)
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise _not_found(TASK_NOT_FOUND_DETAIL) from exc
+
+
+@app.put("/tasks/{task_id}", response_model=Task)
+def update_task(task_id: int, payload: TaskUpdate, store: StoreDep) -> Task:
+    """タスク情報を更新する。"""
+
+    try:
+        return store.update_task(task_id, payload)
+    except KeyError as exc:
+        raise _not_found(TASK_NOT_FOUND_DETAIL) from exc
+
+
+@app.patch("/tasks/{task_id}/status", response_model=Task)
+def update_task_status(
+    task_id: int, payload: TaskStatusUpdate, store: StoreDep
+) -> Task:
+    """タスクの状態のみを更新する。"""
+
+    try:
+        return store.update_task_status(task_id, payload.status)
+    except KeyError as exc:
+        raise _not_found(TASK_NOT_FOUND_DETAIL) from exc
+
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int, store: StoreDep) -> None:
+    """タスクを削除する。"""
+
+    try:
+        store.delete_task(task_id)
+    except KeyError as exc:
+        raise _not_found(TASK_NOT_FOUND_DETAIL) from exc

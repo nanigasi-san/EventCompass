@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
 from threading import Lock
+from datetime import datetime, date
 
 from .models import (
     ContactInfo,
@@ -15,6 +16,13 @@ from .models import (
     Member,
     MemberCreate,
     MemberUpdate,
+    Schedule,
+    ScheduleCreate,
+    ScheduleUpdate,
+    Task,
+    TaskCreate,
+    TaskStatus,
+    TaskUpdate,
 )
 
 
@@ -30,6 +38,8 @@ class SQLiteStore:
         )
         # クエリ結果を辞書風に扱えるようにする
         self._conn.row_factory = sqlite3.Row
+        # 外部キー制約を有効化する
+        self._conn.execute("PRAGMA foreign_keys = ON")
         self._init_schema()
 
     # -- 内部ユーティリティ -------------------------------------------------
@@ -64,6 +74,27 @@ class SQLiteStore:
                     part TEXT NOT NULL,
                     quantity INTEGER NOT NULL CHECK(quantity >= 0)
                 );
+
+                CREATE TABLE IF NOT EXISTS schedules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    event_date TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    schedule_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    start_time TEXT NOT NULL,
+                    end_time TEXT NOT NULL,
+                    location TEXT,
+                    status TEXT NOT NULL,
+                    note TEXT,
+                    FOREIGN KEY(schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON tasks(schedule_id);
                 """
             )
             conn.commit()
@@ -270,6 +301,239 @@ class SQLiteStore:
             quantity=row["quantity"],
         )
 
+    # -- Schedule operations ----------------------------------------------
+    def list_schedules(self) -> list[Schedule]:
+        query = "SELECT id, name, event_date FROM schedules ORDER BY event_date, id"
+        with self._lock:
+            rows = self._connection().execute(query).fetchall()
+        return [self._row_to_schedule(row) for row in rows]
+
+    def get_schedule(self, schedule_id: int) -> Schedule:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT id, name, event_date FROM schedules WHERE id = ?",
+                (schedule_id,),
+            ).fetchone()
+        if row is None:
+            raise KeyError(schedule_id)
+        return self._row_to_schedule(row)
+
+    def create_schedule(self, payload: ScheduleCreate) -> Schedule:
+        with self._lock:
+            cursor = self._connection().execute(
+                "INSERT INTO schedules (name, event_date) VALUES (?, ?)",
+                (payload.name, payload.event_date.isoformat()),
+            )
+            self._connection().commit()
+            schedule_id = cursor.lastrowid
+        data = payload.model_dump()
+        data["id"] = schedule_id
+        return Schedule(**data)
+
+    def update_schedule(self, schedule_id: int, payload: ScheduleUpdate) -> Schedule:
+        update_data = payload.model_dump(exclude_unset=True)
+        if not update_data:
+            return self.get_schedule(schedule_id)
+
+        columns: list[str] = []
+        params: list[object] = []
+        if "name" in update_data:
+            columns.append("name = ?")
+            params.append(update_data["name"])
+        if "event_date" in update_data:
+            columns.append("event_date = ?")
+            event_date_val = update_data["event_date"]
+            if isinstance(event_date_val, date):
+                params.append(event_date_val.isoformat())
+            else:  # pragma: no cover - defensive
+                params.append(str(event_date_val))
+
+        with self._lock:
+            cursor = self._connection().execute(
+                f"UPDATE schedules SET {', '.join(columns)} WHERE id = ?",
+                (*params, schedule_id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(schedule_id)
+            self._connection().commit()
+        return self.get_schedule(schedule_id)
+
+    def delete_schedule(self, schedule_id: int) -> None:
+        with self._lock:
+            cursor = self._connection().execute(
+                "DELETE FROM schedules WHERE id = ?",
+                (schedule_id,),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(schedule_id)
+            self._connection().commit()
+
+    # -- Task operations ---------------------------------------------------
+    def list_tasks(
+        self,
+        schedule_id: int,
+        *,
+        stage: str | None = None,
+        status: TaskStatus | None = None,
+    ) -> list[Task]:
+        filters: list[str] = ["schedule_id = ?"]
+        params: list[object] = [schedule_id]
+        if stage is not None:
+            filters.append("lower(stage) = lower(?)")
+            params.append(stage)
+        if status is not None:
+            filters.append("status = ?")
+            params.append(status.value)
+
+        query = (
+            "SELECT id, schedule_id, name, stage, start_time, end_time, location, "
+            "status, note FROM tasks WHERE "
+            + " AND ".join(filters)
+            + " ORDER BY start_time, id"
+        )
+        with self._lock:
+            if not self._schedule_exists(schedule_id):
+                raise KeyError(schedule_id)
+            rows = self._connection().execute(query, params).fetchall()
+        return [self._row_to_task(row) for row in rows]
+
+    def get_task(self, task_id: int) -> Task:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT id, schedule_id, name, stage, start_time, end_time, location, "
+                "status, note FROM tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+        if row is None:
+            raise KeyError(task_id)
+        return self._row_to_task(row)
+
+    def create_task(self, schedule_id: int, payload: TaskCreate) -> Task:
+        with self._lock:
+            if not self._schedule_exists(schedule_id):
+                raise KeyError(schedule_id)
+            cursor = self._connection().execute(
+                (
+                    "INSERT INTO tasks (schedule_id, name, stage, start_time, end_time, "
+                    "location, status, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                (
+                    schedule_id,
+                    payload.name,
+                    payload.stage,
+                    payload.start_time.isoformat(),
+                    payload.end_time.isoformat(),
+                    payload.location,
+                    payload.status.value,
+                    payload.note,
+                ),
+            )
+            self._connection().commit()
+            task_id = cursor.lastrowid
+        data = payload.model_dump()
+        data.update({"id": task_id, "schedule_id": schedule_id})
+        return Task(**data)
+
+    def update_task(self, task_id: int, payload: TaskUpdate) -> Task:
+        update_data = payload.model_dump(exclude_unset=True)
+        if not update_data:
+            return self.get_task(task_id)
+
+        columns: list[str] = []
+        params: list[object] = []
+        if "name" in update_data:
+            columns.append("name = ?")
+            params.append(update_data["name"])
+        if "stage" in update_data:
+            columns.append("stage = ?")
+            params.append(update_data["stage"])
+        if "start_time" in update_data:
+            columns.append("start_time = ?")
+            start_val = update_data["start_time"]
+            if isinstance(start_val, datetime):
+                params.append(start_val.isoformat())
+            else:  # pragma: no cover - defensive
+                params.append(str(start_val))
+        if "end_time" in update_data:
+            columns.append("end_time = ?")
+            end_val = update_data["end_time"]
+            if isinstance(end_val, datetime):
+                params.append(end_val.isoformat())
+            else:  # pragma: no cover - defensive
+                params.append(str(end_val))
+        if "location" in update_data:
+            columns.append("location = ?")
+            params.append(update_data["location"])
+        if "status" in update_data:
+            columns.append("status = ?")
+            status_val = update_data["status"]
+            if isinstance(status_val, TaskStatus):
+                params.append(status_val.value)
+            else:  # pragma: no cover - defensive
+                params.append(str(status_val))
+        if "note" in update_data:
+            columns.append("note = ?")
+            params.append(update_data["note"])
+
+        with self._lock:
+            cursor = self._connection().execute(
+                f"UPDATE tasks SET {', '.join(columns)} WHERE id = ?",
+                (*params, task_id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(task_id)
+            self._connection().commit()
+        return self.get_task(task_id)
+
+    def update_task_status(self, task_id: int, status: TaskStatus) -> Task:
+        with self._lock:
+            cursor = self._connection().execute(
+                "UPDATE tasks SET status = ? WHERE id = ?",
+                (status.value, task_id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(task_id)
+            self._connection().commit()
+        return self.get_task(task_id)
+
+    def delete_task(self, task_id: int) -> None:
+        with self._lock:
+            cursor = self._connection().execute(
+                "DELETE FROM tasks WHERE id = ?",
+                (task_id,),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(task_id)
+            self._connection().commit()
+
+    # -- Internal helpers --------------------------------------------------
+    def _row_to_schedule(self, row: sqlite3.Row) -> Schedule:
+        return Schedule(
+            id=row["id"],
+            name=row["name"],
+            event_date=date.fromisoformat(row["event_date"]),
+        )
+
+    def _row_to_task(self, row: sqlite3.Row) -> Task:
+        return Task(
+            id=row["id"],
+            schedule_id=row["schedule_id"],
+            name=row["name"],
+            stage=row["stage"],
+            start_time=datetime.fromisoformat(row["start_time"]),
+            end_time=datetime.fromisoformat(row["end_time"]),
+            location=row["location"],
+            status=TaskStatus(row["status"]),
+            note=row["note"],
+        )
+
+    def _schedule_exists(self, schedule_id: int) -> bool:
+        row = self._connection().execute(
+            "SELECT 1 FROM schedules WHERE id = ?",
+            (schedule_id,),
+        ).fetchone()
+        return row is not None
+
     # -- Utilities ---------------------------------------------------------
     def reset(self) -> None:
         """テスト用に全データとオートインクリメントを初期化する。"""
@@ -278,8 +542,11 @@ class SQLiteStore:
             conn = self._connection()
             conn.execute("DELETE FROM members")
             conn.execute("DELETE FROM materials")
+            conn.execute("DELETE FROM tasks")
+            conn.execute("DELETE FROM schedules")
             conn.execute(
-                "DELETE FROM sqlite_sequence WHERE name IN ('members', 'materials')"
+                "DELETE FROM sqlite_sequence WHERE name IN "
+                "('members', 'materials', 'schedules', 'tasks')"
             )
             conn.commit()
 

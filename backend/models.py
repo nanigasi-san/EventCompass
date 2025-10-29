@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 
@@ -69,3 +72,81 @@ class MaterialUpdate(BaseModel):
     name: str | None = None
     part: str | None = None
     quantity: int | None = None
+
+
+class ScheduleBase(BaseModel):
+    """スケジュール共通のプロパティ。"""
+
+    name: str
+    event_date: date
+
+
+class Schedule(ScheduleBase):
+    """永続化済みスケジュール。"""
+
+    id: int
+
+
+class ScheduleCreate(ScheduleBase):
+    """スケジュール作成用のリクエストボディ。"""
+
+    pass
+
+
+class ScheduleUpdate(BaseModel):
+    """スケジュール更新用のリクエストボディ。未指定項目は更新しない。"""
+
+    name: str | None = None
+    event_date: date | None = None
+
+
+class TaskStatus(str, Enum):
+    """タスクの状態を表す列挙。"""
+
+    PLANNED = "planned"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    DELAYED = "delayed"
+
+
+class TaskBase(BaseModel):
+    """タスク共通のプロパティ。"""
+
+    name: str
+    stage: str
+    start_time: datetime
+    end_time: datetime
+    location: str | None = None
+    status: TaskStatus = TaskStatus.PLANNED
+    note: str | None = None
+
+
+class Task(TaskBase):
+    """永続化済みタスク。"""
+
+    id: int
+    schedule_id: int
+
+
+class TaskCreate(TaskBase):
+    """タスク作成用のリクエストボディ。"""
+
+    pass
+
+
+class TaskUpdate(BaseModel):
+    """タスク更新用のリクエストボディ。未指定項目は更新しない。"""
+
+    name: str | None = None
+    stage: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    location: str | None = None
+    status: TaskStatus | None = None
+    note: str | None = None
+
+
+class TaskStatusUpdate(BaseModel):
+    """タスクの状態のみを更新するためのリクエストボディ。"""
+
+    status: TaskStatus

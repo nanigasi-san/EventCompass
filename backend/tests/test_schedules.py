@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import SCHEDULE_NOT_FOUND_DETAIL, TASK_NOT_FOUND_DETAIL

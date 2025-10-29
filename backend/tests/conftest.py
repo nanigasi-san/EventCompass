@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 # ルートディレクトリを import パスに追加し、テストから backend パッケージを参照できるようにする
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import pytest
 from fastapi.testclient import TestClient

@@ -71,6 +71,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "pydantic" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
@@ -87,6 +88,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pydantic", specifier = ">=2.6.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", specifier = ">=0.14.2" },

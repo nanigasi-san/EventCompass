@@ -4,55 +4,44 @@ import { useDataContext } from './state/DataProvider';
 function App(): JSX.Element {
   const { syncState, syncNow, lastSync } = useDataContext();
 
-  const syncStatusLabel =
-    syncState === 'syncing'
-      ? '同期中...'
-      : syncState === 'error'
-        ? '同期できませんでした'
-        : '最新の状態です';
-
-  const syncStatusClassName = [
-    'sync-status',
-    syncState === 'error' ? 'error' : syncState === 'syncing' ? 'pending' : ''
+  const syncBadge = [
+    'sync-indicator',
+    syncState === 'error' ? 'is-error' : syncState === 'syncing' ? 'is-syncing' : 'is-idle'
   ]
     .filter(Boolean)
     .join(' ');
 
+  const syncText =
+    syncState === 'syncing'
+      ? '同期中…'
+      : syncState === 'error'
+        ? '同期に失敗しました'
+        : '最新の状態です';
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <h1>EventCompass</h1>
-          <p className="sidebar-subtitle">現場を導くサイバーオペレーション基盤</p>
+    <main className="content">
+      <header className="command-bar">
+        <div className="command-primary">
+          <h2>同期情報</h2>
+          <p>メンバーと資材データの同期状況を確認し、必要に応じて更新します。</p>
         </div>
-        <nav className="nav-links">
-          <a href="#overview" className="nav-link">
-            ダッシュボード
-          </a>
-          <a href="#members" className="nav-link">
-            メンバーハブ
-          </a>
-          <a href="#materials" className="nav-link">
-            資材レジストリ
-          </a>
-        </nav>
-      </aside>
-      <main className="content">
-        <div className="top-bar">
-          <div className="top-bar-status">
-            <strong>同期ステータス</strong>
-            <div className={syncStatusClassName}>{syncStatusLabel}</div>
-            {lastSync ? (
-              <div className="top-bar-meta">最終同期: {new Date(lastSync).toLocaleString()}</div>
-            ) : null}
+        <div className="command-status">
+          <div className={syncBadge}>{syncText}</div>
+          <div className="command-timestamp">
+            最終同期:{' '}
+            {lastSync ? new Date(lastSync).toLocaleString() : 'まだ同期は実行されていません'}
           </div>
-          <button className="button glow" onClick={syncNow} disabled={syncState === 'syncing'}>
-            今すぐ同期
+          <button
+            className="button button-glow"
+            onClick={syncNow}
+            disabled={syncState === 'syncing'}
+          >
+            すぐに同期
           </button>
         </div>
-        <Overview />
-      </main>
-    </div>
+      </header>
+      <Overview />
+    </main>
   );
 }
 

@@ -20,7 +20,9 @@ def test_list_members_filters_part_case_insensitively(seeded_store: SQLiteStore)
     assert {member.name for member in filtered} == {"Kento Tanaka", "Sora Suzuki"}
 
     created = seeded_store.create_member(
-        MemberCreate(name="Percussion Tester", part="Percussion", position="Support")
+        MemberCreate(
+            name="Percussion Tester", part="Percussion", position="Support", contact=ContactInfo()
+        )
     )
     assert created.id == 4
 

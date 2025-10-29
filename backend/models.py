@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ContactInfo(BaseModel):
@@ -22,7 +22,7 @@ class MemberBase(BaseModel):
     name: str
     part: str
     position: str
-    contact: ContactInfo = Field(default_factory=ContactInfo)
+    contact: ContactInfo
 
 
 class Member(MemberBase):

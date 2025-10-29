@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterable
+from datetime import date, datetime
 from pathlib import Path
 from threading import Lock
-from datetime import datetime, date
 
 from .models import (
     ContactInfo,
@@ -117,11 +117,15 @@ class SQLiteStore:
 
     def get_member(self, member_id: int) -> Member:
         with self._lock:
-            row = self._connection().execute(
-                "SELECT id, name, part, position, contact_phone, contact_email, contact_note"
-                " FROM members WHERE id = ?",
-                (member_id,),
-            ).fetchone()
+            row = (
+                self._connection()
+                .execute(
+                    "SELECT id, name, part, position, contact_phone, contact_email, contact_note"
+                    " FROM members WHERE id = ?",
+                    (member_id,),
+                )
+                .fetchone()
+            )
         if row is None:
             raise KeyError(member_id)
         return self._row_to_member(row)
@@ -181,9 +185,7 @@ class SQLiteStore:
                     "contact_note = ?",
                 ]
             )
-            params.extend(
-                [contact_model.phone, contact_model.email, contact_model.note]
-            )
+            params.extend([contact_model.phone, contact_model.email, contact_model.note])
         with self._lock:
             cursor = self._connection().execute(
                 f"UPDATE members SET {', '.join(columns)} WHERE id = ?",
@@ -234,10 +236,14 @@ class SQLiteStore:
 
     def get_material(self, material_id: int) -> Material:
         with self._lock:
-            row = self._connection().execute(
-                "SELECT id, name, part, quantity FROM materials WHERE id = ?",
-                (material_id,),
-            ).fetchone()
+            row = (
+                self._connection()
+                .execute(
+                    "SELECT id, name, part, quantity FROM materials WHERE id = ?",
+                    (material_id,),
+                )
+                .fetchone()
+            )
         if row is None:
             raise KeyError(material_id)
         return self._row_to_material(row)
@@ -310,10 +316,14 @@ class SQLiteStore:
 
     def get_schedule(self, schedule_id: int) -> Schedule:
         with self._lock:
-            row = self._connection().execute(
-                "SELECT id, name, event_date FROM schedules WHERE id = ?",
-                (schedule_id,),
-            ).fetchone()
+            row = (
+                self._connection()
+                .execute(
+                    "SELECT id, name, event_date FROM schedules WHERE id = ?",
+                    (schedule_id,),
+                )
+                .fetchone()
+            )
         if row is None:
             raise KeyError(schedule_id)
         return self._row_to_schedule(row)
@@ -387,9 +397,7 @@ class SQLiteStore:
 
         query = (
             "SELECT id, schedule_id, name, stage, start_time, end_time, location, "
-            "status, note FROM tasks WHERE "
-            + " AND ".join(filters)
-            + " ORDER BY start_time, id"
+            "status, note FROM tasks WHERE " + " AND ".join(filters) + " ORDER BY start_time, id"
         )
         with self._lock:
             if not self._schedule_exists(schedule_id):
@@ -399,11 +407,15 @@ class SQLiteStore:
 
     def get_task(self, task_id: int) -> Task:
         with self._lock:
-            row = self._connection().execute(
-                "SELECT id, schedule_id, name, stage, start_time, end_time, location, "
-                "status, note FROM tasks WHERE id = ?",
-                (task_id,),
-            ).fetchone()
+            row = (
+                self._connection()
+                .execute(
+                    "SELECT id, schedule_id, name, stage, start_time, end_time, location, "
+                    "status, note FROM tasks WHERE id = ?",
+                    (task_id,),
+                )
+                .fetchone()
+            )
         if row is None:
             raise KeyError(task_id)
         return self._row_to_task(row)
@@ -528,10 +540,14 @@ class SQLiteStore:
         )
 
     def _schedule_exists(self, schedule_id: int) -> bool:
-        row = self._connection().execute(
-            "SELECT 1 FROM schedules WHERE id = ?",
-            (schedule_id,),
-        ).fetchone()
+        row = (
+            self._connection()
+            .execute(
+                "SELECT 1 FROM schedules WHERE id = ?",
+                (schedule_id,),
+            )
+            .fetchone()
+        )
         return row is not None
 
     # -- Utilities ---------------------------------------------------------

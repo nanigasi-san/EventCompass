@@ -10,12 +10,16 @@ import {
   MemberUpdateInput,
   OperationAction,
   OperationRecord,
-  SyncState
+  Schedule,
+  SyncState,
+  Task
 } from '../types';
 
 interface DataContextValue {
   members: MemberRecord[];
   materials: MaterialRecord[];
+  schedules: Schedule[];
+  tasks: Task[];
   syncState: SyncState;
   lastSync: number | null;
   syncNow: () => Promise<void>;
@@ -27,7 +31,7 @@ interface DataContextValue {
   deleteMaterial: (materialId: number) => Promise<void>;
 }
 
-const DataContext = createContext<DataContextValue | undefined>(undefined);
+export const DataContext = createContext<DataContextValue | undefined>(undefined);
 
 const generateOperationId = (): string => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -44,19 +48,31 @@ const sortMembers = (records: MemberRecord[]): MemberRecord[] =>
 const sortMaterials = (records: MaterialRecord[]): MaterialRecord[] =>
   [...records].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 
+const sortSchedules = (records: Schedule[]): Schedule[] =>
+  [...records].sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+
+const sortTasks = (records: Task[]): Task[] =>
+  [...records].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
 export function DataProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [members, setMembers] = useState<MemberRecord[]>([]);
   const [materials, setMaterials] = useState<MaterialRecord[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [lastSync, setLastSync] = useState<number | null>(null);
 
   const loadFromStorage = useCallback(async () => {
-    const [storedMembers, storedMaterials] = await Promise.all([
+    const [storedMembers, storedMaterials, storedSchedules, storedTasks] = await Promise.all([
       db.members.toArray(),
-      db.materials.toArray()
+      db.materials.toArray(),
+      db.schedules.toArray(),
+      db.tasks.toArray()
     ]);
     setMembers(sortMembers(storedMembers));
     setMaterials(sortMaterials(storedMaterials));
+    setSchedules(sortSchedules(storedSchedules));
+    setTasks(sortTasks(storedTasks));
   }, []);
 
   const syncPendingOperations = useCallback(async () => {
@@ -89,19 +105,28 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     setSyncState('syncing');
     try {
       await syncPendingOperations();
-      const [remoteMembers, remoteMaterials] = await Promise.all([
+      const [remoteMembers, remoteMaterials, remoteSchedules] = await Promise.all([
         apiClient.listMembers(),
-        apiClient.listMaterials()
+        apiClient.listMaterials(),
+        apiClient.listSchedules()
       ]);
-      await db.transaction('rw', db.members, db.materials, async () => {
+      const remoteTasksNested = await Promise.all(
+        remoteSchedules.map((schedule) => apiClient.listTasks(schedule.id))
+      );
+      const remoteTasks = remoteTasksNested.flat();
+      await db.transaction('rw', db.members, db.materials, db.schedules, db.tasks, async () => {
         await db.members.clear();
         await db.materials.clear();
+        await db.schedules.clear();
+        await db.tasks.clear();
         await db.members.bulkPut(
           remoteMembers.map((member) => ({ ...member, syncStatus: 'synced' as const }))
         );
         await db.materials.bulkPut(
           remoteMaterials.map((material) => ({ ...material, syncStatus: 'synced' as const }))
         );
+        await db.schedules.bulkPut(remoteSchedules);
+        await db.tasks.bulkPut(remoteTasks);
       });
       await loadFromStorage();
       setLastSync(Date.now());
@@ -299,6 +324,8 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     () => ({
       members,
       materials,
+      schedules,
+      tasks,
       syncState,
       lastSync,
       syncNow,
@@ -312,6 +339,8 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     [
       members,
       materials,
+      schedules,
+      tasks,
       syncState,
       lastSync,
       syncNow,

@@ -58,3 +58,23 @@ export interface OperationRecord {
   payload: unknown;
   createdAt: number;
 }
+
+export interface Schedule {
+  id: number;
+  name: string;
+  event_date: string;
+}
+
+export interface Task {
+  id: number;
+  schedule_id: number;
+  name: string;
+  stage: string;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  status: TaskStatus;
+  note: string | null;
+}
+
+export type TaskStatus = 'planned' | 'in_progress' | 'completed' | 'delayed';

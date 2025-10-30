@@ -1,5 +1,6 @@
-import { Overview } from './views/Overview';
 import { useDataContext } from './state/DataProvider';
+import { ScheduleBoard } from './views/ScheduleBoard';
+import { Overview } from './views/Overview';
 
 function App(): JSX.Element {
   const { syncState, syncNow, lastSync } = useDataContext();
@@ -20,6 +21,7 @@ function App(): JSX.Element {
 
   return (
     <main className="content">
+      <ScheduleBoard />
       <header className="command-bar">
         <div className="command-primary">
           <h2>同期情報</h2>

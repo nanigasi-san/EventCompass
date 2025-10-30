@@ -335,6 +335,137 @@ a {
   pointer-events: none;
 }
 
+
+.schedule-board {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(8, 12, 24, 0.85);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.schedule-board__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.schedule-board__lead {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: rgba(214, 228, 255, 0.75);
+}
+
+.schedule-board__select select {
+  min-width: 200px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(12, 18, 36, 0.9);
+  color: #f4f7ff;
+  font-size: 0.95rem;
+}
+
+.schedule-board__empty {
+  border-radius: var(--radius-md);
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: rgba(6, 12, 24, 0.65);
+  padding: 20px;
+  text-align: center;
+  color: rgba(214, 228, 255, 0.75);
+}
+
+.schedule-board__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schedule-board__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-board__summary h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.schedule-board__summary p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(214, 228, 255, 0.7);
+}
+
+.schedule-stage {
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(4, 9, 20, 0.8);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.schedule-stage__title {
+  margin: 0;
+  font-size: 1rem;
+  color: rgba(234, 241, 255, 0.95);
+}
+
+.schedule-stage__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.schedule-task {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(12, 18, 36, 0.75);
+}
+
+.schedule-task__time {
+  min-width: 150px;
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  color: rgba(127, 205, 255, 0.95);
+}
+
+.schedule-task--milestone .schedule-task__time {
+  color: rgba(255, 209, 102, 0.95);
+}
+
+.schedule-task__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-task__name {
+  margin: 0;
+  font-weight: 600;
+  color: #f4f7ff;
+}
+
+.schedule-task__note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(214, 228, 255, 0.75);
+}
 .section-header {
   position: relative;
   z-index: 1;

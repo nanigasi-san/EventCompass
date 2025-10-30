@@ -4,7 +4,9 @@ import {
   MaterialUpdateInput,
   Member,
   MemberInput,
-  MemberUpdateInput
+  MemberUpdateInput,
+  Schedule,
+  Task
 } from '../types';
 
 const defaultBaseUrl = 'http://127.0.0.1:8000';
@@ -71,5 +73,11 @@ export const apiClient = {
     await request<void>(`/materials/${materialId}`, {
       method: 'DELETE'
     });
+  },
+  async listSchedules(): Promise<Schedule[]> {
+    return request<Schedule[]>('/schedules');
+  },
+  async listTasks(scheduleId: number): Promise<Task[]> {
+    return request<Task[]>(`/schedules/${scheduleId}/tasks`);
   }
 };

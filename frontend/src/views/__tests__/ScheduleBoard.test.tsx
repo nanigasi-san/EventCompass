@@ -180,11 +180,14 @@ describe('ScheduleBoard', () => {
 
     const milestoneNameInput = utils.getByTestId('milestone-name-input') as HTMLInputElement;
     const milestoneStageInput = utils.getByTestId('milestone-stage-input') as HTMLInputElement;
+    const milestoneDateInput = utils.getByTestId('milestone-date-input') as HTMLInputElement;
     const milestoneTimeInput = utils.getByTestId('milestone-time-input') as HTMLInputElement;
     const milestoneLocationInput = utils.getByTestId('milestone-location-input') as HTMLInputElement;
 
     await user.type(milestoneNameInput, 'Gathering');
     await user.type(milestoneStageInput, 'Stage C');
+    await user.clear(milestoneDateInput);
+    await user.type(milestoneDateInput, '2025-10-29');
     await user.type(milestoneTimeInput, '10:30');
     await user.type(milestoneLocationInput, 'HQ entrance');
     await act(async () => {

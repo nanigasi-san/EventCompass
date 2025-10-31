@@ -725,6 +725,7 @@ a {
 .schedule-board__form-title {
   font-size: 1rem;
   font-weight: 600;
+  color: var(--text-strong, #0f172a);
   margin: 0;
 }
 
@@ -872,11 +873,69 @@ a {
   text-overflow: ellipsis;
 }
 
-.schedule-gantt__bar--milestone {
+.schedule-gantt__milestone {
+  position: absolute;
+  top: 10px;
+  height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.schedule-gantt__milestone--start {
+  transform: translateX(0);
+  align-items: flex-start;
+}
+
+.schedule-gantt__milestone--middle {
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+.schedule-gantt__milestone--end {
+  transform: translateX(-100%);
+  align-items: flex-end;
+}
+
+.schedule-gantt__milestone-line {
+  flex: 1;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0), rgba(249, 115, 22, 0.65), rgba(249, 115, 22, 0));
+  border-radius: 1px;
+}
+
+.schedule-gantt__milestone-badge {
+  pointer-events: auto;
   background: #f97316;
   color: #ffffff;
-  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   box-shadow: 0 6px 16px rgba(249, 115, 22, 0.3);
+  min-width: 140px;
+  text-align: center;
+}
+
+.schedule-gantt__milestone-time {
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.schedule-gantt__milestone-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.schedule-gantt__milestone-note {
+  font-size: 0.75rem;
+  opacity: 0.85;
 }
 
 @media (max-width: 960px) {

@@ -109,6 +109,7 @@ export function ScheduleBoard(): JSX.Element {
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [milestoneName, setMilestoneName] = useState('');
   const [milestoneStage, setMilestoneStage] = useState('');
+  const [milestoneDate, setMilestoneDate] = useState('');
   const [milestoneTime, setMilestoneTime] = useState('');
   const [milestoneLocation, setMilestoneLocation] = useState('');
   const [milestoneSubmitting, setMilestoneSubmitting] = useState(false);
@@ -135,6 +136,16 @@ export function ScheduleBoard(): JSX.Element {
     }
     return schedules.find((schedule) => schedule.id === selectedScheduleId) ?? null;
   }, [schedules, selectedScheduleId]);
+
+  const selectedScheduleEventDate = selectedSchedule?.event_date ?? '';
+
+  useEffect(() => {
+    if (selectedScheduleId === null || !selectedScheduleEventDate) {
+      setMilestoneDate('');
+      return;
+    }
+    setMilestoneDate(selectedScheduleEventDate);
+  }, [selectedScheduleId, selectedScheduleEventDate]);
 
   const scheduleTasks = useMemo(() => {
     if (selectedScheduleId === null) {
@@ -182,12 +193,22 @@ export function ScheduleBoard(): JSX.Element {
         const startOffset = item.start.getTime() - start.getTime();
         const endOffset = item.end.getTime() - start.getTime();
         const left = clamp((startOffset / duration) * 100, 0, 100);
+        if (item.isMilestone) {
+          const alignment = left < 12 ? 'start' : left > 88 ? 'end' : 'middle';
+          return {
+            ...item,
+            left,
+            width: 0,
+            alignment
+          };
+        }
         const rawWidth = ((item.end.getTime() - item.start.getTime()) / duration) * 100;
-        const width = item.isMilestone ? 1.5 : clamp(rawWidth, 1.5, 100 - left);
+        const width = clamp(rawWidth, 1.5, 100 - left);
         return {
           ...item,
           left,
-          width
+          width,
+          alignment: 'middle'
         };
       })
     }));
@@ -256,12 +277,16 @@ export function ScheduleBoard(): JSX.Element {
       return;
     }
     const stage = milestoneStage.trim() || 'マイルストーン';
+    if (!milestoneDate) {
+      setMilestoneError('日付を指定してください');
+      return;
+    }
     if (!milestoneTime) {
       setMilestoneError('時刻を設定してください');
       return;
     }
     const locationValue = milestoneLocation.trim();
-    const milestoneIso = buildDateTimeWithOffset(selectedSchedule.event_date, milestoneTime);
+    const milestoneIso = buildDateTimeWithOffset(milestoneDate, milestoneTime);
 
     setMilestoneSubmitting(true);
     try {
@@ -276,6 +301,7 @@ export function ScheduleBoard(): JSX.Element {
       });
       setMilestoneError(null);
       setMilestoneName('');
+      setMilestoneDate(selectedSchedule.event_date);
       setMilestoneTime('');
       setMilestoneLocation('');
     } catch (error) {
@@ -386,6 +412,15 @@ export function ScheduleBoard(): JSX.Element {
               />
             </label>
             <label>
+              <span className="schedule-board__label">日付</span>
+              <input
+                type="date"
+                data-testid="milestone-date-input"
+                value={milestoneDate}
+                onChange={(event) => setMilestoneDate(event.target.value)}
+              />
+            </label>
+            <label>
               <span className="schedule-board__label">時刻</span>
               <input
                 type="time"
@@ -476,24 +511,39 @@ export function ScheduleBoard(): JSX.Element {
                   <div key={stage} className="schedule-gantt__row">
                     <div className="schedule-gantt__row-label">{stage}</div>
                     <div className="schedule-gantt__row-track">
-                      {items.map(({ task, start, end, isMilestone, left, width }) => (
-                        <div
-                          key={task.id}
-                          className={`schedule-gantt__bar${
-                            isMilestone ? ' schedule-gantt__bar--milestone' : ''
-                          }`}
-                          style={{ left: `${left}%`, width: `${width}%` }}
-                        >
-                          <span className="schedule-gantt__bar-time">
-                            {isMilestone
-                              ? `${timeFormatter.format(start)} マイルストーン`
-                              : `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`}
-                          </span>
-                          <span className="schedule-gantt__bar-name">{task.name}</span>
-                          {task.location && (
-                            <span className="schedule-gantt__bar-note">場所: {task.location}</span>
-                          )}
-                        </div>
+                      {items.map(({ task, start, end, isMilestone, left, width, alignment }) => (
+                        isMilestone ? (
+                          <div
+                            key={task.id}
+                            className={`schedule-gantt__milestone schedule-gantt__milestone--${alignment}`}
+                            style={{ left: `${left}%` }}
+                          >
+                            <div className="schedule-gantt__milestone-line" aria-hidden="true" />
+                            <div className="schedule-gantt__milestone-badge">
+                              <span className="schedule-gantt__milestone-time">
+                                {timeFormatter.format(start)} マイルストーン
+                              </span>
+                              <span className="schedule-gantt__milestone-name">{task.name}</span>
+                              {task.location && (
+                                <span className="schedule-gantt__milestone-note">場所: {task.location}</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            key={task.id}
+                            className="schedule-gantt__bar"
+                            style={{ left: `${left}%`, width: `${width}%` }}
+                          >
+                            <span className="schedule-gantt__bar-time">
+                              {`${timeFormatter.format(start)} - ${timeFormatter.format(end)}`}
+                            </span>
+                            <span className="schedule-gantt__bar-name">{task.name}</span>
+                            {task.location && (
+                              <span className="schedule-gantt__bar-note">場所: {task.location}</span>
+                            )}
+                          </div>
+                        )
                       ))}
                     </div>
                   </div>

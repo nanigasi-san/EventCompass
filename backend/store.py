@@ -78,7 +78,9 @@ class SQLiteStore:
                 CREATE TABLE IF NOT EXISTS schedules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
-                    event_date TEXT NOT NULL
+                    event_date TEXT NOT NULL,
+                    start_time TEXT NOT NULL,
+                    end_time TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -97,7 +99,26 @@ class SQLiteStore:
                 CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON tasks(schedule_id);
                 """
             )
+            # SQLite の既存スキーマに start_time / end_time が無い場合は追加する
+            self._ensure_schedule_columns(conn)
             conn.commit()
+
+    def _ensure_schedule_columns(self, conn: sqlite3.Connection) -> None:
+        """schedules テーブルに start_time / end_time 列が無ければ追加する。"""
+
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(schedules)").fetchall()}
+        for column in ("start_time", "end_time"):
+            if column not in existing:
+                conn.execute(f"ALTER TABLE schedules ADD COLUMN {column} TEXT")
+                # 既存レコードには event_date を基にデフォルトを設定しておく
+                if column == "start_time":
+                    conn.execute(
+                        "UPDATE schedules SET start_time = event_date || 'T00:00:00'"
+                    )
+                elif column == "end_time":
+                    conn.execute(
+                        "UPDATE schedules SET end_time = event_date || 'T23:59:59'"
+                    )
 
     # -- Member operations -------------------------------------------------
     def list_members(self, part: str | None = None) -> list[Member]:
@@ -309,7 +330,10 @@ class SQLiteStore:
 
     # -- Schedule operations ----------------------------------------------
     def list_schedules(self) -> list[Schedule]:
-        query = "SELECT id, name, event_date FROM schedules ORDER BY event_date, id"
+        query = (
+            "SELECT id, name, event_date, start_time, end_time "
+            "FROM schedules ORDER BY start_time, id"
+        )
         with self._lock:
             rows = self._connection().execute(query).fetchall()
         return [self._row_to_schedule(row) for row in rows]
@@ -319,7 +343,10 @@ class SQLiteStore:
             row = (
                 self._connection()
                 .execute(
-                    "SELECT id, name, event_date FROM schedules WHERE id = ?",
+                    (
+                        "SELECT id, name, event_date, start_time, end_time "
+                        "FROM schedules WHERE id = ?"
+                    ),
                     (schedule_id,),
                 )
                 .fetchone()
@@ -329,10 +356,20 @@ class SQLiteStore:
         return self._row_to_schedule(row)
 
     def create_schedule(self, payload: ScheduleCreate) -> Schedule:
+        if payload.start_time >= payload.end_time:
+            raise ValueError("start_time must be before end_time")
         with self._lock:
             cursor = self._connection().execute(
-                "INSERT INTO schedules (name, event_date) VALUES (?, ?)",
-                (payload.name, payload.event_date.isoformat()),
+                (
+                    "INSERT INTO schedules (name, event_date, start_time, end_time) "
+                    "VALUES (?, ?, ?, ?)"
+                ),
+                (
+                    payload.name,
+                    payload.event_date.isoformat(),
+                    payload.start_time.isoformat(),
+                    payload.end_time.isoformat(),
+                ),
             )
             self._connection().commit()
             schedule_id = cursor.lastrowid
@@ -344,6 +381,12 @@ class SQLiteStore:
         update_data = payload.model_dump(exclude_unset=True)
         if not update_data:
             return self.get_schedule(schedule_id)
+
+        current = self.get_schedule(schedule_id)
+        candidate_start = update_data.get("start_time", current.start_time)
+        candidate_end = update_data.get("end_time", current.end_time)
+        if candidate_start >= candidate_end:
+            raise ValueError("start_time must be before end_time")
 
         columns: list[str] = []
         params: list[object] = []
@@ -357,6 +400,20 @@ class SQLiteStore:
                 params.append(event_date_val.isoformat())
             else:  # pragma: no cover - defensive
                 params.append(str(event_date_val))
+        if "start_time" in update_data:
+            columns.append("start_time = ?")
+            start_val = update_data["start_time"]
+            if isinstance(start_val, datetime):
+                params.append(start_val.isoformat())
+            else:  # pragma: no cover - defensive
+                params.append(str(start_val))
+        if "end_time" in update_data:
+            columns.append("end_time = ?")
+            end_val = update_data["end_time"]
+            if isinstance(end_val, datetime):
+                params.append(end_val.isoformat())
+            else:  # pragma: no cover - defensive
+                params.append(str(end_val))
 
         with self._lock:
             cursor = self._connection().execute(
@@ -524,6 +581,8 @@ class SQLiteStore:
             id=row["id"],
             name=row["name"],
             event_date=date.fromisoformat(row["event_date"]),
+            start_time=datetime.fromisoformat(row["start_time"]),
+            end_time=datetime.fromisoformat(row["end_time"]),
         )
 
     def _row_to_task(self, row: sqlite3.Row) -> Task:

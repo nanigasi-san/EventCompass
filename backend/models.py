@@ -79,6 +79,8 @@ class ScheduleBase(BaseModel):
 
     name: str
     event_date: date
+    start_time: datetime
+    end_time: datetime
 
 
 class Schedule(ScheduleBase):
@@ -98,6 +100,8 @@ class ScheduleUpdate(BaseModel):
 
     name: str | None = None
     event_date: date | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
 
 class TaskStatus(str, Enum):

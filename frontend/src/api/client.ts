@@ -6,7 +6,11 @@ import {
   MemberInput,
   MemberUpdateInput,
   Schedule,
-  Task
+  ScheduleInput,
+  ScheduleUpdateInput,
+  Task,
+  TaskInput,
+  TaskUpdateInput
 } from '../types';
 
 const defaultBaseUrl = 'http://127.0.0.1:8000';
@@ -77,7 +81,41 @@ export const apiClient = {
   async listSchedules(): Promise<Schedule[]> {
     return request<Schedule[]>('/schedules');
   },
+  async createSchedule(payload: ScheduleInput): Promise<Schedule> {
+    return request<Schedule>('/schedules', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  async updateSchedule(scheduleId: number, payload: ScheduleUpdateInput): Promise<Schedule> {
+    return request<Schedule>(`/schedules/${scheduleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  async deleteSchedule(scheduleId: number): Promise<void> {
+    await request<void>(`/schedules/${scheduleId}`, {
+      method: 'DELETE'
+    });
+  },
   async listTasks(scheduleId: number): Promise<Task[]> {
     return request<Task[]>(`/schedules/${scheduleId}/tasks`);
+  },
+  async createTask(scheduleId: number, payload: TaskInput): Promise<Task> {
+    return request<Task>(`/schedules/${scheduleId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  async updateTask(taskId: number, payload: TaskUpdateInput): Promise<Task> {
+    return request<Task>(`/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  async deleteTask(taskId: number): Promise<void> {
+    await request<void>(`/tasks/${taskId}`, {
+      method: 'DELETE'
+    });
   }
 };

@@ -190,7 +190,13 @@ def get_schedule(schedule_id: int, store: StoreDep) -> Schedule:
 def create_schedule(payload: ScheduleCreate, store: StoreDep) -> Schedule:
     """スケジュールを新規登録する。"""
 
-    return store.create_schedule(payload)
+    try:
+        return store.create_schedule(payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @app.put("/schedules/{schedule_id}", response_model=Schedule)
@@ -203,6 +209,11 @@ def update_schedule(
         return store.update_schedule(schedule_id, payload)
     except KeyError as exc:
         raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @app.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)

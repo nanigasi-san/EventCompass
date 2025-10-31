@@ -38,7 +38,48 @@ export interface MaterialInput {
 
 export type MaterialUpdateInput = Partial<MaterialInput>;
 
-export type EntityKind = 'member' | 'material';
+export interface Schedule {
+  id: number;
+  name: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ScheduleInput {
+  name: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+}
+
+export type ScheduleUpdateInput = Partial<ScheduleInput>;
+
+export interface Task {
+  id: number;
+  schedule_id: number;
+  name: string;
+  stage: string;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  status: TaskStatus;
+  note: string | null;
+}
+
+export interface TaskInput {
+  name: string;
+  stage: string;
+  start_time: string;
+  end_time: string;
+  location?: string | null;
+  status?: TaskStatus;
+  note?: string | null;
+}
+
+export type TaskUpdateInput = Partial<Omit<TaskInput, 'status'>> & { status?: TaskStatus };
+
+export type EntityKind = 'member' | 'material' | 'schedule' | 'task';
 export type OperationAction = 'create' | 'update' | 'delete';
 export type SyncState = 'idle' | 'syncing' | 'error';
 
@@ -57,24 +98,6 @@ export interface OperationRecord {
   refId: number;
   payload: unknown;
   createdAt: number;
-}
-
-export interface Schedule {
-  id: number;
-  name: string;
-  event_date: string;
-}
-
-export interface Task {
-  id: number;
-  schedule_id: number;
-  name: string;
-  stage: string;
-  start_time: string;
-  end_time: string;
-  location: string | null;
-  status: TaskStatus;
-  note: string | null;
 }
 
 export type TaskStatus = 'planned' | 'in_progress' | 'completed' | 'delayed';

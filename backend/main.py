@@ -23,6 +23,9 @@ from .models import (
     TaskStatus,
     TaskStatusUpdate,
     TaskUpdate,
+    Todo,
+    TodoCreate,
+    TodoUpdate,
 )
 from .store import SQLiteStore
 
@@ -68,6 +71,7 @@ MEMBER_NOT_FOUND_DETAIL = "メンバーが見つかりません"
 MATERIAL_NOT_FOUND_DETAIL = "資材が見つかりません"
 SCHEDULE_NOT_FOUND_DETAIL = "スケジュールが見つかりません"
 TASK_NOT_FOUND_DETAIL = "タスクが見つかりません"
+TODO_NOT_FOUND_DETAIL = "ToDo が見つかりません"
 
 
 # -- Member endpoints ------------------------------------------------------
@@ -190,7 +194,13 @@ def get_schedule(schedule_id: int, store: StoreDep) -> Schedule:
 def create_schedule(payload: ScheduleCreate, store: StoreDep) -> Schedule:
     """スケジュールを新規登録する。"""
 
-    return store.create_schedule(payload)
+    try:
+        return store.create_schedule(payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @app.put("/schedules/{schedule_id}", response_model=Schedule)
@@ -203,6 +213,11 @@ def update_schedule(
         return store.update_schedule(schedule_id, payload)
     except KeyError as exc:
         raise _not_found(SCHEDULE_NOT_FOUND_DETAIL) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @app.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -284,3 +299,63 @@ def delete_task(task_id: int, store: StoreDep) -> None:
         store.delete_task(task_id)
     except KeyError as exc:
         raise _not_found(TASK_NOT_FOUND_DETAIL) from exc
+
+
+
+
+# -- Todo endpoints -------------------------------------------------------
+@app.get("/todos", response_model=list[Todo])
+def list_todos_endpoint(store: StoreDep) -> list[Todo]:
+    """ToDo リストを取得する。"""
+
+    return store.list_todos()
+
+
+@app.get("/todos/{todo_id}", response_model=Todo)
+def get_todo_endpoint(todo_id: int, store: StoreDep) -> Todo:
+    """単一の ToDo を取得する。"""
+
+    try:
+        return store.get_todo(todo_id)
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise _not_found(TODO_NOT_FOUND_DETAIL) from exc
+
+
+@app.post("/todos", response_model=Todo, status_code=status.HTTP_201_CREATED)
+def create_todo_endpoint(payload: TodoCreate, store: StoreDep) -> Todo:
+    """ToDo を新規登録する。"""
+
+    try:
+        return store.create_todo(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.put("/todos/{todo_id}", response_model=Todo)
+def update_todo_endpoint(todo_id: int, payload: TodoUpdate, store: StoreDep) -> Todo:
+    """既存の ToDo を更新する。"""
+
+    try:
+        return store.update_todo(todo_id, payload)
+    except KeyError as exc:
+        raise _not_found(TODO_NOT_FOUND_DETAIL) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.delete("/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_todo_endpoint(todo_id: int, store: StoreDep) -> None:
+    """ToDo を削除する。"""
+
+    try:
+        store.delete_todo(todo_id)
+    except KeyError as exc:
+        raise _not_found(TODO_NOT_FOUND_DETAIL) from exc
+
+
+@app.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
+def reset_database(store: StoreDep) -> None:
+    """Reset every table (testing & maintenance)."""
+
+    store.reset()
+

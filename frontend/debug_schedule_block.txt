@@ -1,0 +1,97 @@
+462:       {!selectedSchedule ? (
+463:         <div className="schedule-board__empty">
+464:           <p>�܂��X�P�W���[�����o�^����Ă��܂���B�ǉ����ĕ\�����J�n���܂��傤�B</p>
+465:         </div>
+466:       ) : (
+467:         <div className="schedule-board__body">
+468:           <div className="schedule-board__summary">
+469:             <h3>{selectedSchedule.name}</h3>
+470:             <p>
+471:               <span>{formatDateLabel(selectedSchedule)}</span>{' '}
+472:               {timeline ? (
+473:                 <>
+474:                   {timeFormatter.format(timeline.start)} - {timeFormatter.format(timeline.end)}
+475:                 </>
+476:               ) : (
+477:                 '�^�C�����C�������擾�ł��܂���'
+478:               )}{' '}
+479:               �b {scheduleTasks.length}���̃^�X�N
+480:             </p>
+481:           </div>
+482: 
+483:           {scheduleTasks.length === 0 ? (
+484:             <div className="schedule-board__empty schedule-board__empty--inline">
+485:             <div className="schedule-board__empty schedule-board__empty--inline">
+486:             </div>
+487:           ) : timeline ? (
+488:             <div className="schedule-gantt">
+489:               <div className="schedule-gantt__axis">
+490:                 <span className="schedule-gantt__axis-edge">
+491:                   {timeFormatter.format(timeline.start)}
+492:                 </span>
+493:                 <div className="schedule-gantt__axis-track">
+494:                   {timeline.ticks.map((tick) => (
+495:                     <div
+496:                       key={tick.label + tick.position}
+497:                       className="schedule-gantt__tick"
+498:                       style={{ left: `${tick.position}%` }}
+499:                     >
+500:                       <span>{tick.label}</span>
+501:                     </div>
+502:                   ))}
+503:                 </div>
+504:                 <span className="schedule-gantt__axis-edge">
+505:                   {timeFormatter.format(timeline.end)}
+506:                 </span>
+507:               </div>
+508: 
+509:               <div className="schedule-gantt__rows">
+510:                 {ganttStageGroups.map(({ stage, items }) => (
+511:                   <div key={stage} className="schedule-gantt__row">
+512:                     <div className="schedule-gantt__row-label">{stage}</div>
+513:                     <div className="schedule-gantt__row-track">
+514:                       {items.map(({ task, start, end, isMilestone, left, width, alignment }) => (
+515:                         isMilestone ? (
+516:                           <div
+517:                             key={task.id}
+518:                             className={`schedule-gantt__milestone schedule-gantt__milestone--${alignment}`}
+519:                             style={{ left: `${left}%` }}
+520:                           >
+521:                             <div className="schedule-gantt__milestone-line" aria-hidden="true" />
+522:                             <div className="schedule-gantt__milestone-badge">
+523:                               <span className="schedule-gantt__milestone-title">
+524:                                 {`${timeFormatter.format(start)} ${task.name}`}
+525:                               </span>
+526:                               {task.location && (
+527:                                 <span className="schedule-gantt__milestone-note">場所: {task.location}</span>
+528:                               )}
+529:                             </div>
+530:                           </div>
+531:                         ) : (
+532:                           <div
+533:                             key={task.id}
+534:                             className="schedule-gantt__bar"
+535:                             style={{ left: `${left}%`, width: `${width}%` }}
+536:                           >
+537:                             <span className="schedule-gantt__bar-time">
+538:                               {`${timeFormatter.format(start)} - ${timeFormatter.format(end)}`}
+539:                             </span>
+540:                             <span className="schedule-gantt__bar-name">{task.name}</span>
+541:                             {task.location && (
+542:                               <span className="schedule-gantt__bar-note">場所: {task.location}</span>
+543:                             )}
+544:                           </div>
+545:                         )
+546:                       ))}
+547:                     </div>
+548:                   </div>
+549:                 ))}
+550:               </div>
+551:             </div>
+552:           ) : (
+553:             <div className="schedule-board__empty schedule-board__empty--inline">
+554:               <p>�J�n�����ƏI�������̏�񂪐������Ȃ����߁A�^�C�����C����\���ł��܂���B</p>
+555:             </div>
+556:           )}
+557:         </div>
+558:       )}

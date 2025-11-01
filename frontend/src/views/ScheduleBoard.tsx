@@ -14,6 +14,12 @@ interface StageGroup {
   items: StageGroupItem[];
 }
 
+type PositionedItem = StageGroupItem & {
+  left: number;
+  width: number;
+  alignment: 'start' | 'middle' | 'end';
+};
+
 interface TimelineTick {
   label: string;
   position: number;
@@ -182,9 +188,9 @@ export function ScheduleBoard(): JSX.Element {
     };
   }, [selectedSchedule]);
 
-  const ganttStageGroups = useMemo(() => {
+  const ganttStageGroups = useMemo((): { stage: string; items: PositionedItem[] }[] => {
     if (!timeline) {
-      return stageGroups;
+      return [];
     }
     const { start, duration } = timeline;
     return stageGroups.map(({ stage, items }) => ({
@@ -200,7 +206,7 @@ export function ScheduleBoard(): JSX.Element {
             left,
             width: 0,
             alignment
-          };
+          } as PositionedItem;
         }
         const rawWidth = ((item.end.getTime() - item.start.getTime()) / duration) * 100;
         const width = clamp(rawWidth, 1.5, 100 - left);
@@ -209,7 +215,7 @@ export function ScheduleBoard(): JSX.Element {
           left,
           width,
           alignment: 'middle'
-        };
+        } as PositionedItem;
       })
     }));
   }, [stageGroups, timeline]);
@@ -376,7 +382,7 @@ export function ScheduleBoard(): JSX.Element {
                 onChange={(event) => setScheduleEndTime(event.target.value)}
               />
             </label>
-            <button type="submit" className="button" disabled={scheduleSubmitting}>
+            <button type="submit" className="button button-glow" disabled={scheduleSubmitting}>
               追加
             </button>
           </div>
@@ -464,15 +470,12 @@ export function ScheduleBoard(): JSX.Element {
         <div className="schedule-board__empty">
           <p>まだスケジュールが登録されていません。追加して表示を開始しましょう。</p>
         </div>
-      ) : scheduleTasks.length === 0 ? (
-        <div className="schedule-board__empty">
-          <p>この日のイベントはまだ登録されていません。</p>
-        </div>
       ) : (
         <div className="schedule-board__body">
           <div className="schedule-board__summary">
-            <h3>{formatDateLabel(selectedSchedule)}</h3>
+            <h3>{selectedSchedule.name}</h3>
             <p>
+              <span>{formatDateLabel(selectedSchedule)}</span>{' '}
               {timeline ? (
                 <>
                   {timeFormatter.format(timeline.start)} - {timeFormatter.format(timeline.end)}
@@ -480,11 +483,15 @@ export function ScheduleBoard(): JSX.Element {
               ) : (
                 'タイムライン情報を取得できません'
               )}{' '}
-              ｜ {scheduleTasks.length}件のタスク
+              �b {scheduleTasks.length}���̃^�X�N
             </p>
           </div>
 
-          {timeline ? (
+          {scheduleTasks.length === 0 ? (
+            <div className="schedule-board__empty schedule-board__empty--inline">
+              <p>このスケジュールにはマイルストーンが登録されていません。</p>
+            </div>
+          ) : timeline ? (
             <div className="schedule-gantt">
               <div className="schedule-gantt__axis">
                 <span className="schedule-gantt__axis-edge">
@@ -520,10 +527,9 @@ export function ScheduleBoard(): JSX.Element {
                           >
                             <div className="schedule-gantt__milestone-line" aria-hidden="true" />
                             <div className="schedule-gantt__milestone-badge">
-                              <span className="schedule-gantt__milestone-time">
-                                {timeFormatter.format(start)} マイルストーン
+                              <span className="schedule-gantt__milestone-title">
+                                {`${timeFormatter.format(start)} ${task.name}`}
                               </span>
-                              <span className="schedule-gantt__milestone-name">{task.name}</span>
                               {task.location && (
                                 <span className="schedule-gantt__milestone-note">場所: {task.location}</span>
                               )}
@@ -551,8 +557,8 @@ export function ScheduleBoard(): JSX.Element {
               </div>
             </div>
           ) : (
-            <div className="schedule-board__empty">
-              <p>開始時刻と終了時刻の情報が正しくないため、タイムラインを表示できません。</p>
+            <div className="schedule-board__empty schedule-board__empty--inline">
+              <p>開始時刻と終了時刻の関係が不正なため、タイムラインを表示できません。</p>
             </div>
           )}
         </div>

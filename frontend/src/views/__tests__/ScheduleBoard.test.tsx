@@ -51,9 +51,11 @@ const defaultContext = {
   materials: baseMaterials,
   schedules: baseSchedules,
   tasks: baseTasks,
+  todos: [],
   syncState: 'idle' as const,
   lastSync: null,
   syncNow: vi.fn(),
+  resetAll: vi.fn(),
   createMember: vi.fn(),
   updateMember: vi.fn(),
   deleteMember: vi.fn(),
@@ -61,7 +63,10 @@ const defaultContext = {
   updateMaterial: vi.fn(),
   deleteMaterial: vi.fn(),
   createSchedule: vi.fn(async () => 1),
-  createMilestone: vi.fn(async () => 100)
+  createMilestone: vi.fn(async () => 100),
+  createTodo: vi.fn(async () => {}),
+  updateTodo: vi.fn(async () => {}),
+  deleteTodo: vi.fn(async () => {})
 };
 
 function renderScheduleBoard(overrides: ContextOverrides = {}) {
@@ -95,6 +100,15 @@ describe('ScheduleBoard', () => {
 
     expect(
       screen.getByText(/まだスケジュールが登録されていません。追加して表示を開始しましょう。/)
+    ).toBeInTheDocument();
+  });
+
+  it('still renders schedule details when no milestones are registered yet', () => {
+    renderScheduleBoard({ tasks: [] });
+
+    expect(screen.getByRole('heading', { name: baseSchedules[0].name })).toBeInTheDocument();
+    expect(
+      screen.getByText('このスケジュールにはマイルストーンが登録されていません。')
     ).toBeInTheDocument();
   });
 

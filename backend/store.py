@@ -23,6 +23,10 @@ from .models import (
     TaskCreate,
     TaskStatus,
     TaskUpdate,
+    Todo,
+    TodoCreate,
+    TodoStatus,
+    TodoUpdate,
 )
 
 
@@ -97,6 +101,19 @@ class SQLiteStore:
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON tasks(schedule_id);
+
+                CREATE TABLE IF NOT EXISTS todos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    due_date TEXT,
+                    status TEXT NOT NULL,
+                    assignee_id INTEGER,
+                    FOREIGN KEY(assignee_id) REFERENCES members(id) ON DELETE SET NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
+                CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
                 """
             )
             # SQLite の既存スキーマに start_time / end_time が無い場合は追加する
@@ -435,6 +452,16 @@ class SQLiteStore:
                 raise KeyError(schedule_id)
             self._connection().commit()
 
+
+    def _row_to_schedule(self, row: sqlite3.Row) -> Schedule:
+        return Schedule(
+            id=row["id"],
+            name=row["name"],
+            event_date=date.fromisoformat(row["event_date"]),
+            start_time=datetime.fromisoformat(row["start_time"]),
+            end_time=datetime.fromisoformat(row["end_time"]),
+        )
+    
     # -- Task operations ---------------------------------------------------
     def list_tasks(
         self,
@@ -575,15 +602,6 @@ class SQLiteStore:
                 raise KeyError(task_id)
             self._connection().commit()
 
-    # -- Internal helpers --------------------------------------------------
-    def _row_to_schedule(self, row: sqlite3.Row) -> Schedule:
-        return Schedule(
-            id=row["id"],
-            name=row["name"],
-            event_date=date.fromisoformat(row["event_date"]),
-            start_time=datetime.fromisoformat(row["start_time"]),
-            end_time=datetime.fromisoformat(row["end_time"]),
-        )
 
     def _row_to_task(self, row: sqlite3.Row) -> Task:
         return Task(
@@ -597,6 +615,151 @@ class SQLiteStore:
             status=TaskStatus(row["status"]),
             note=row["note"],
         )
+    
+    def _row_to_todo(self, row: sqlite3.Row) -> Todo:
+        due_date = row["due_date"]
+        return Todo(
+            id=row["id"],
+            title=row["title"],
+            description=row["description"],
+            due_date=date.fromisoformat(due_date) if due_date else None,
+            status=TodoStatus(row["status"]),
+            assignee_id=row["assignee_id"],
+        )
+    
+    
+    
+    
+    # -- Todo operations ----------------------------------------------------
+    def list_todos(self) -> list[Todo]:
+        """ToDo 一覧を登録順に取得する。"""
+
+        query = (
+            "SELECT id, title, description, due_date, status, assignee_id "
+            "FROM todos ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date, id"
+        )
+        with self._lock:
+            rows = self._connection().execute(query).fetchall()
+        return [self._row_to_todo(row) for row in rows]
+
+
+    def get_todo(self, todo_id: int) -> Todo:
+        """指定した ToDo を取得する。"""
+
+        with self._lock:
+            row = (
+                self._connection()
+                .execute(
+                    "SELECT id, title, description, due_date, status, assignee_id FROM todos WHERE id = ?",
+                    (todo_id,),
+                )
+                .fetchone()
+            )
+        if row is None:
+            raise KeyError(todo_id)
+        return self._row_to_todo(row)
+
+
+    def create_todo(self, payload: TodoCreate) -> Todo:
+        """新しい ToDo を作成する。"""
+
+        assignee_id = payload.assignee_id
+        if assignee_id is not None and not self._member_exists(assignee_id):
+            raise ValueError("assignee_id must reference an existing member")
+
+        due_date = payload.due_date.isoformat() if payload.due_date else None
+        with self._lock:
+            cursor = self._connection().execute(
+                (
+                    "INSERT INTO todos (title, description, due_date, status, assignee_id) "
+                    "VALUES (?, ?, ?, ?, ?)"
+                ),
+                (
+                    payload.title,
+                    payload.description,
+                    due_date,
+                    payload.status.value,
+                    assignee_id,
+                ),
+            )
+            self._connection().commit()
+            todo_id = cursor.lastrowid
+        return self.get_todo(todo_id)
+
+
+    def update_todo(self, todo_id: int, payload: TodoUpdate) -> Todo:
+        """既存 ToDo を更新する。"""
+
+        update_data = payload.model_dump(exclude_unset=True)
+        if not update_data:
+            return self.get_todo(todo_id)
+
+        columns: list[str] = []
+        params: list[object] = []
+        if "title" in update_data:
+            columns.append("title = ?")
+            params.append(update_data["title"])
+        if "description" in update_data:
+            columns.append("description = ?")
+            params.append(update_data["description"])
+        if "due_date" in update_data:
+            columns.append("due_date = ?")
+            due_val = update_data["due_date"]
+            if isinstance(due_val, date):
+                params.append(due_val.isoformat())
+            elif due_val is None:
+                params.append(None)
+            else:  # pragma: no cover - defensive
+                params.append(str(due_val))
+        if "status" in update_data:
+            columns.append("status = ?")
+            status_val = update_data["status"]
+            if isinstance(status_val, TodoStatus):
+                params.append(status_val.value)
+            else:  # pragma: no cover - defensive
+                params.append(str(status_val))
+        if "assignee_id" in update_data:
+            columns.append("assignee_id = ?")
+            assignee_val = update_data["assignee_id"]
+            if assignee_val is None:
+                params.append(None)
+            else:
+                if not self._member_exists(int(assignee_val)):
+                    raise ValueError("assignee_id must reference an existing member")
+                params.append(int(assignee_val))
+
+        with self._lock:
+            cursor = self._connection().execute(
+                f"UPDATE todos SET {', '.join(columns)} WHERE id = ?",
+                (*params, todo_id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(todo_id)
+            self._connection().commit()
+        return self.get_todo(todo_id)
+
+
+    def delete_todo(self, todo_id: int) -> None:
+        """指定した ToDo を削除する。"""
+
+        with self._lock:
+            cursor = self._connection().execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+            if cursor.rowcount == 0:
+                raise KeyError(todo_id)
+            self._connection().commit()
+
+
+
+    def _member_exists(self, member_id: int) -> bool:
+        row = (
+            self._connection()
+            .execute(
+                "SELECT 1 FROM members WHERE id = ?",
+                (member_id,),
+            )
+            .fetchone()
+        )
+        return row is not None
 
     def _schedule_exists(self, schedule_id: int) -> bool:
         row = (
@@ -611,7 +774,7 @@ class SQLiteStore:
 
     # -- Utilities ---------------------------------------------------------
     def reset(self) -> None:
-        """テスト用に全データとオートインクリメントを初期化する。"""
+        """テスト用に全テーブルを初期化する。"""
 
         with self._lock:
             conn = self._connection()
@@ -619,14 +782,15 @@ class SQLiteStore:
             conn.execute("DELETE FROM materials")
             conn.execute("DELETE FROM tasks")
             conn.execute("DELETE FROM schedules")
+            conn.execute("DELETE FROM todos")
             conn.execute(
                 "DELETE FROM sqlite_sequence WHERE name IN "
-                "('members', 'materials', 'schedules', 'tasks')"
+                "('members', 'materials', 'schedules', 'tasks', 'todos')"
             )
             conn.commit()
 
     def close(self) -> None:
-        """接続をクローズする。"""
+        """コネクションをクローズする。"""
 
         with self._lock:
             if self._conn is not None:

@@ -17,7 +17,11 @@ import {
   Task,
   TaskInput,
   TaskStatus,
-  TaskUpdateInput
+  TaskUpdateInput,
+  Todo,
+  TodoInput,
+  TodoStatus,
+  TodoUpdateInput
 } from '../types';
 
 interface DataContextValue {
@@ -25,9 +29,11 @@ interface DataContextValue {
   materials: MaterialRecord[];
   schedules: Schedule[];
   tasks: Task[];
+  todos: Todo[];
   syncState: SyncState;
   lastSync: number | null;
   syncNow: () => Promise<void>;
+  resetAll: () => Promise<void>;
   createMember: (input: MemberInput) => Promise<void>;
   updateMember: (memberId: number, input: MemberUpdateInput) => Promise<void>;
   deleteMember: (memberId: number) => Promise<void>;
@@ -36,6 +42,9 @@ interface DataContextValue {
   deleteMaterial: (materialId: number) => Promise<void>;
   createSchedule: (input: ScheduleInput) => Promise<number>;
   createMilestone: (scheduleId: number, input: TaskInput) => Promise<number>;
+  createTodo: (input: TodoInput) => Promise<void>;
+  updateTodo: (todoId: number, input: TodoUpdateInput) => Promise<void>;
+  deleteTodo: (todoId: number) => Promise<void>;
 }
 
 export const DataContext = createContext<DataContextValue | undefined>(undefined);
@@ -63,20 +72,39 @@ const sortSchedules = (records: Schedule[]): Schedule[] =>
   );
 
 const sortTasks = (records: Task[]): Task[] =>
-  [...records].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  [...records].sort((a, b) => {
+    const aTime = new Date(a.start_time).getTime();
+    const bTime = new Date(b.start_time).getTime();
+    if (aTime === bTime) {
+      return a.id - b.id;
+    }
+    return aTime - bTime;
+  });
+
+const sortTodos = (records: Todo[]): Todo[] =>
+  [...records].sort((a, b) => {
+    const aTime = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
+    const bTime = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
+    if (aTime === bTime) {
+      return a.id - b.id;
+    }
+    return aTime - bTime;
+  });
 
 type EntityIdRemap = {
   member: Map<number, number>;
   material: Map<number, number>;
   schedule: Map<number, number>;
   task: Map<number, number>;
+  todo: Map<number, number>;
 };
 
 const createIdRemap = (): EntityIdRemap => ({
   member: new Map<number, number>(),
   material: new Map<number, number>(),
   schedule: new Map<number, number>(),
-  task: new Map<number, number>()
+  task: new Map<number, number>(),
+  todo: new Map<number, number>()
 });
 
 const resolveMappedId = (map: Map<number, number>, id: number): number | null => {
@@ -87,26 +115,30 @@ const resolveMappedId = (map: Map<number, number>, id: number): number | null =>
 };
 
 type TaskOperationPayload = TaskInput & { schedule_id: number };
+type TodoOperationPayload = TodoInput & { assignee_id?: number | null };
 
 export function DataProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [members, setMembers] = useState<MemberRecord[]>([]);
   const [materials, setMaterials] = useState<MaterialRecord[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [lastSync, setLastSync] = useState<number | null>(null);
 
   const loadFromStorage = useCallback(async () => {
-    const [storedMembers, storedMaterials, storedSchedules, storedTasks] = await Promise.all([
+    const [storedMembers, storedMaterials, storedSchedules, storedTasks, storedTodos] = await Promise.all([
       db.members.toArray(),
       db.materials.toArray(),
       db.schedules.toArray(),
-      db.tasks.toArray()
+      db.tasks.toArray(),
+      db.todos.toArray()
     ]);
     setMembers(sortMembers(storedMembers));
     setMaterials(sortMaterials(storedMaterials));
     setSchedules(sortSchedules(storedSchedules));
     setTasks(sortTasks(storedTasks));
+    setTodos(sortTodos(storedTodos));
   }, []);
 
   const syncPendingOperations = useCallback(async () => {
@@ -123,9 +155,11 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
           await handleScheduleOperation(operation, idRemap);
         } else if (operation.entity === 'task') {
           await handleTaskOperation(operation, idRemap);
+        } else if (operation.entity === 'todo') {
+          await handleTodoOperation(operation, idRemap);
         }
       } catch (error) {
-        console.error('���������ŃG���[���������܂���', error);
+        console.error('保留中の操作の同期中にエラーが発生しました', error);
         throw error;
       }
     }
@@ -141,20 +175,22 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     setSyncState('syncing');
     try {
       await syncPendingOperations();
-      const [remoteMembers, remoteMaterials, remoteSchedules] = await Promise.all([
+      const [remoteMembers, remoteMaterials, remoteSchedules, remoteTodos] = await Promise.all([
         apiClient.listMembers(),
         apiClient.listMaterials(),
-        apiClient.listSchedules()
+        apiClient.listSchedules(),
+        apiClient.listTodos()
       ]);
       const remoteTasksNested = await Promise.all(
         remoteSchedules.map((schedule) => apiClient.listTasks(schedule.id))
       );
       const remoteTasks = remoteTasksNested.flat();
-      await db.transaction('rw', db.members, db.materials, db.schedules, db.tasks, async () => {
+      await db.transaction('rw', db.members, db.materials, db.schedules, db.tasks, db.todos, async () => {
         await db.members.clear();
         await db.materials.clear();
         await db.schedules.clear();
         await db.tasks.clear();
+        await db.todos.clear();
         await db.members.bulkPut(
           remoteMembers.map((member) => ({ ...member, syncStatus: 'synced' as const }))
         );
@@ -163,6 +199,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         );
         await db.schedules.bulkPut(remoteSchedules);
         await db.tasks.bulkPut(remoteTasks);
+        await db.todos.bulkPut(remoteTodos);
       });
       await loadFromStorage();
       setLastSync(Date.now());
@@ -172,6 +209,38 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       setSyncState('error');
     }
   }, [loadFromStorage, syncPendingOperations]);
+
+  const resetAll = useCallback(async () => {
+    setSyncState('syncing');
+    try {
+      await apiClient.reset();
+      await db.transaction(
+        'rw',
+        db.members,
+        db.materials,
+        db.schedules,
+        db.tasks,
+        db.todos,
+        async () => {
+          await db.members.clear();
+          await db.materials.clear();
+          await db.schedules.clear();
+          await db.tasks.clear();
+          await db.todos.clear();
+        }
+      );
+      await db.transaction('rw', db.operations, async () => {
+        await db.operations.clear();
+      });
+      await loadFromStorage();
+      setLastSync(Date.now());
+      setSyncState('idle');
+    } catch (error) {
+      await loadFromStorage();
+      setSyncState('error');
+      throw error;
+    }
+  }, [loadFromStorage]);
 
   useEffect(() => {
     void loadFromStorage();
@@ -263,6 +332,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       if (isNavigatorOnline() && memberId > 0) {
         await apiClient.deleteMember(memberId);
         await db.members.delete(memberId);
+        await db.todos.where('assignee_id').equals(memberId).modify({ assignee_id: null });
         await loadFromStorage();
         return;
       }
@@ -271,10 +341,36 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         if (memberId <= 0) {
           await db.operations.where('refId').equals(memberId).delete();
           await db.members.delete(memberId);
+          await db.todos.where('assignee_id').equals(memberId).modify({ assignee_id: null });
+          await db.operations
+            .filter(
+              (pendingOp) =>
+                pendingOp.entity === 'todo' &&
+                typeof pendingOp.payload === 'object' &&
+                pendingOp.payload !== null &&
+                'assignee_id' in (pendingOp.payload as Record<string, unknown>) &&
+                (pendingOp.payload as TodoOperationPayload).assignee_id === memberId
+            )
+            .modify((pendingOp) => {
+              (pendingOp.payload as TodoOperationPayload).assignee_id = null;
+            });
           return;
         }
         await enqueueOperation('member', 'delete', memberId, null);
         await db.members.update(memberId, { syncStatus: 'pending' as const });
+        await db.todos.where('assignee_id').equals(memberId).modify({ assignee_id: null });
+        await db.operations
+          .filter(
+            (pendingOp) =>
+              pendingOp.entity === 'todo' &&
+              typeof pendingOp.payload === 'object' &&
+              pendingOp.payload !== null &&
+              'assignee_id' in (pendingOp.payload as Record<string, unknown>) &&
+              (pendingOp.payload as TodoOperationPayload).assignee_id === memberId
+          )
+          .modify((pendingOp) => {
+            (pendingOp.payload as TodoOperationPayload).assignee_id = null;
+          });
       });
       await loadFromStorage();
     },
@@ -456,12 +552,136 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     [createTaskEntry]
   );
 
+
+  const createTodo = useCallback(
+    async (input: TodoInput) => {
+      const title = input.title.trim();
+      if (!title) {
+        throw new Error('ToDo のタイトルを入力してください');
+      }
+      const payload: TodoInput = {
+        title,
+        description: input.description?.trim() ? input.description.trim() : null,
+        due_date: input.due_date?.trim() ? input.due_date : null,
+        status: input.status ?? 'pending',
+        assignee_id:
+          typeof input.assignee_id === 'number' ? input.assignee_id : null
+      };
+
+      if (isNavigatorOnline()) {
+        const created = await apiClient.createTodo(payload);
+        await db.todos.put(created);
+      } else {
+        const localId = generateLocalId();
+        await db.transaction('rw', db.todos, db.operations, async () => {
+          const todoRecord = {
+            id: localId,
+            title: payload.title,
+            description: payload.description ?? null,
+            due_date: payload.due_date ?? null,
+            status: payload.status ?? 'pending',
+            assignee_id: typeof payload.assignee_id === 'number' ? payload.assignee_id : null
+          } as const;
+          await db.todos.put(todoRecord);
+          await enqueueOperation('todo', 'create', localId, payload);
+        });
+      }
+      await loadFromStorage();
+    },
+    [enqueueOperation, loadFromStorage]
+  );
+
+  const updateTodo = useCallback(
+    async (todoId: number, input: TodoUpdateInput) => {
+      const payload: TodoUpdateInput = {};
+      if (input.title !== undefined) {
+        const title = input.title.trim();
+        if (!title) {
+          throw new Error('ToDo のタイトルを入力してください');
+        }
+        payload.title = title;
+      }
+      if (input.description !== undefined) {
+        payload.description = input.description?.trim()
+          ? input.description.trim()
+          : null;
+      }
+      if (input.due_date !== undefined) {
+        payload.due_date = input.due_date?.trim() ? input.due_date : null;
+      }
+      if (input.status !== undefined) {
+        payload.status = input.status;
+      }
+      if (input.assignee_id !== undefined) {
+        payload.assignee_id = input.assignee_id === null ? null : input.assignee_id;
+      }
+
+      if (isNavigatorOnline() && todoId > 0) {
+        const updated = await apiClient.updateTodo(todoId, payload);
+        await db.todos.put(updated);
+        await loadFromStorage();
+        return;
+      }
+
+      await db.transaction('rw', db.todos, db.operations, async () => {
+        const existing = await db.todos.get(todoId);
+        if (!existing) {
+          return;
+        }
+        const merged: Todo = { ...existing };
+        if (payload.title !== undefined) {
+          merged.title = payload.title;
+        }
+        if (payload.description !== undefined) {
+          merged.description = payload.description ?? null;
+        }
+        if (payload.due_date !== undefined) {
+          merged.due_date = payload.due_date ?? null;
+        }
+        if (payload.status !== undefined) {
+          merged.status = payload.status;
+        }
+        if (payload.assignee_id !== undefined) {
+          merged.assignee_id = payload.assignee_id ?? null;
+        }
+        await db.todos.put(merged);
+        await enqueueOperation('todo', 'update', todoId, payload);
+      });
+      await loadFromStorage();
+    },
+    [enqueueOperation, loadFromStorage]
+  );
+
+  const deleteTodo = useCallback(
+    async (todoId: number) => {
+      if (isNavigatorOnline() && todoId > 0) {
+        await apiClient.deleteTodo(todoId);
+        await db.todos.delete(todoId);
+        await loadFromStorage();
+        return;
+      }
+
+      await db.transaction('rw', db.todos, db.operations, async () => {
+        if (todoId <= 0) {
+          await db.operations.where('refId').equals(todoId).delete();
+          await db.todos.delete(todoId);
+          return;
+        }
+        await enqueueOperation('todo', 'delete', todoId, null);
+        await db.todos.delete(todoId);
+      });
+      await loadFromStorage();
+    },
+    [enqueueOperation, loadFromStorage]
+  );
+
   const value = useMemo(
     () => ({
       members,
       materials,
       schedules,
       tasks,
+      todos,
       syncState,
       lastSync,
       syncNow,
@@ -472,13 +692,18 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       updateMaterial,
       deleteMaterial,
       createSchedule,
-      createMilestone
+      createMilestone,
+      createTodo,
+      updateTodo,
+      deleteTodo,
+      resetAll
     }),
     [
       members,
       materials,
       schedules,
       tasks,
+      todos,
       syncState,
       lastSync,
       syncNow,
@@ -489,7 +714,11 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       updateMaterial,
       deleteMaterial,
       createSchedule,
-      createMilestone
+      createMilestone,
+      createTodo,
+      updateTodo,
+      deleteTodo,
+      resetAll
     ]
   );
 
@@ -513,6 +742,19 @@ async function handleMemberOperation(operation: OperationRecord, idRemap: Entity
       await db.members.delete(operation.refId);
       await db.members.put({ ...created, syncStatus: 'synced' });
       await db.operations.where('refId').equals(operation.refId).modify({ refId: created.id });
+      await db.todos.where('assignee_id').equals(operation.refId).modify({ assignee_id: created.id });
+      await db.operations
+        .filter(
+          (pendingOp) =>
+            pendingOp.entity === 'todo' &&
+            typeof pendingOp.payload === 'object' &&
+            pendingOp.payload !== null &&
+            'assignee_id' in (pendingOp.payload as Record<string, unknown>) &&
+            (pendingOp.payload as TodoOperationPayload).assignee_id === operation.refId
+        )
+        .modify((pendingOp) => {
+          (pendingOp.payload as TodoOperationPayload).assignee_id = created.id;
+        });
       await db.operations.delete(operation.id);
     });
     map.set(operation.refId, created.id);
@@ -552,6 +794,19 @@ async function handleMaterialOperation(operation: OperationRecord, idRemap: Enti
       await db.materials.delete(operation.refId);
       await db.materials.put({ ...created, syncStatus: 'synced' });
       await db.operations.where('refId').equals(operation.refId).modify({ refId: created.id });
+      await db.todos.where('assignee_id').equals(operation.refId).modify({ assignee_id: created.id });
+      await db.operations
+        .filter(
+          (pendingOp) =>
+            pendingOp.entity === 'todo' &&
+            typeof pendingOp.payload === 'object' &&
+            pendingOp.payload !== null &&
+            'assignee_id' in (pendingOp.payload as Record<string, unknown>) &&
+            (pendingOp.payload as TodoOperationPayload).assignee_id === operation.refId
+        )
+        .modify((pendingOp) => {
+          (pendingOp.payload as TodoOperationPayload).assignee_id = created.id;
+        });
       await db.operations.delete(operation.id);
     });
     map.set(operation.refId, created.id);
@@ -640,21 +895,21 @@ async function handleTaskOperation(operation: OperationRecord, idRemap: EntityId
 
   if (operation.action === 'create') {
     const payload = operation.payload as TaskOperationPayload;
-    const scheduleId = resolveMappedId(idRemap.schedule, payload.schedule_id);
-    if (!scheduleId) {
+    const resolvedScheduleId = resolveMappedId(idRemap.schedule, payload.schedule_id);
+    if (!resolvedScheduleId) {
       throw new Error('スケジュールを解決できずタスクを同期できませんでした');
     }
-    const status: TaskStatus = payload.status ?? 'planned';
+    const statusValue: TaskStatus = payload.status ?? 'planned';
     const taskPayload: TaskInput = {
       name: payload.name,
       stage: payload.stage,
       start_time: payload.start_time,
       end_time: payload.end_time,
       location: payload.location ?? null,
-      status,
+      status: statusValue,
       note: payload.note ?? null
     };
-    const created = await apiClient.createTask(scheduleId, taskPayload);
+    const created = await apiClient.createTask(resolvedScheduleId, taskPayload);
     await db.transaction('rw', db.tasks, db.operations, async () => {
       await db.tasks.delete(operation.refId);
       await db.tasks.put(created);
@@ -689,4 +944,64 @@ async function handleTaskOperation(operation: OperationRecord, idRemap: EntityId
   }
 }
 
+async function handleTodoOperation(operation: OperationRecord, idRemap: EntityIdRemap): Promise<void> {
+  const map = idRemap.todo;
 
+  if (operation.action === 'create') {
+    const payload = operation.payload as TodoOperationPayload;
+    const assigneeSource = typeof payload.assignee_id === 'number' ? payload.assignee_id : null;
+    const resolvedAssignee = assigneeSource !== null ? resolveMappedId(idRemap.member, assigneeSource) : null;
+    if (assigneeSource !== null && resolvedAssignee === null) {
+      return;
+    }
+    const statusValue: TodoStatus = (payload.status as TodoStatus) ?? 'pending';
+    const todoPayload: TodoInput = {
+      title: payload.title,
+      description: payload.description ?? null,
+      due_date: payload.due_date ?? null,
+      status: statusValue,
+      assignee_id: resolvedAssignee
+    };
+    const created = await apiClient.createTodo(todoPayload);
+    await db.transaction('rw', db.todos, db.operations, async () => {
+      await db.todos.delete(operation.refId);
+      await db.todos.put(created);
+      await db.operations.where('refId').equals(operation.refId).modify({ refId: created.id });
+      await db.operations.delete(operation.id);
+    });
+    map.set(operation.refId, created.id);
+    return;
+  }
+
+  const targetId = resolveMappedId(map, operation.refId);
+  if (!targetId) {
+    await db.operations.delete(operation.id);
+    return;
+  }
+
+  if (operation.action === 'update') {
+    const payload = operation.payload as TodoUpdateInput;
+    const updatePayload: TodoUpdateInput = { ...payload };
+    if (payload.assignee_id !== undefined && payload.assignee_id !== null) {
+      const resolved = resolveMappedId(idRemap.member, payload.assignee_id);
+      if (!resolved) {
+        return;
+      }
+      updatePayload.assignee_id = resolved;
+    }
+    const updated = await apiClient.updateTodo(targetId, updatePayload);
+    await db.transaction('rw', db.todos, db.operations, async () => {
+      await db.todos.put(updated);
+      await db.operations.delete(operation.id);
+    });
+    return;
+  }
+
+  if (operation.action === 'delete') {
+    await apiClient.deleteTodo(targetId);
+    await db.transaction('rw', db.todos, db.operations, async () => {
+      await db.todos.delete(targetId);
+      await db.operations.delete(operation.id);
+    });
+  }
+}

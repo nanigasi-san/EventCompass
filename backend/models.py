@@ -154,3 +154,44 @@ class TaskStatusUpdate(BaseModel):
     """タスクの状態のみを更新するためのリクエストボディ。"""
 
     status: TaskStatus
+
+
+
+class TodoStatus(str, Enum):
+    """ToDo アイテムの状態を表す列挙。"""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+
+class TodoBase(BaseModel):
+    """ToDo 共通属性。"""
+
+    title: str
+    description: str | None = None
+    due_date: date | None = None
+    assignee_id: int | None = None
+    status: TodoStatus = TodoStatus.PENDING
+
+
+class Todo(TodoBase):
+    """永続化済みの ToDo。"""
+
+    id: int
+
+
+class TodoCreate(TodoBase):
+    """ToDo 追加時の入力モデル。"""
+
+    pass
+
+
+class TodoUpdate(BaseModel):
+    """ToDo 更新時に利用するパラメータ。未指定の項目は変更しない。"""
+
+    title: str | None = None
+    description: str | None = None
+    due_date: date | None = None
+    assignee_id: int | None = None
+    status: TodoStatus | None = None

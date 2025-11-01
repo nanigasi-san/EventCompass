@@ -10,7 +10,10 @@ import {
   ScheduleUpdateInput,
   Task,
   TaskInput,
-  TaskUpdateInput
+  TaskUpdateInput,
+  Todo,
+  TodoInput,
+  TodoUpdateInput
 } from '../types';
 
 const defaultBaseUrl = 'http://127.0.0.1:8000';
@@ -116,6 +119,32 @@ export const apiClient = {
   async deleteTask(taskId: number): Promise<void> {
     await request<void>(`/tasks/${taskId}`, {
       method: 'DELETE'
+    });
+  },
+
+async listTodos(): Promise<Todo[]> {
+  return request<Todo[]>('/todos');
+},
+async createTodo(payload: TodoInput): Promise<Todo> {
+  return request<Todo>('/todos', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+},
+async updateTodo(todoId: number, payload: TodoUpdateInput): Promise<Todo> {
+  return request<Todo>(`/todos/${todoId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+},
+async deleteTodo(todoId: number): Promise<void> {
+  await request<void>(`/todos/${todoId}`, {
+    method: 'DELETE'
+  });
+},
+  async reset(): Promise<void> {
+    await request<void>('/reset', {
+      method: 'POST'
     });
   }
 };

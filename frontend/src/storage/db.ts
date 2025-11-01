@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { MaterialRecord, MemberRecord, OperationRecord, Schedule, Task } from '../types';
+import { MaterialRecord, MemberRecord, OperationRecord, Schedule, Task, Todo } from '../types';
 
 export class EventCompassDB extends Dexie {
   members!: Table<MemberRecord, number>;
@@ -7,6 +7,7 @@ export class EventCompassDB extends Dexie {
   operations!: Table<OperationRecord, string>;
   schedules!: Table<Schedule, number>;
   tasks!: Table<Task, number>;
+  todos!: Table<Todo, number>;
 
   constructor() {
     super('eventcompass-db');
@@ -47,6 +48,15 @@ export class EventCompassDB extends Dexie {
               record.end_time = `${record.event_date}T23:59:59`;
             }
           });
+      });
+    this.version(4)
+      .stores({
+        members: 'id',
+        materials: 'id',
+        operations: 'id, createdAt, refId',
+        schedules: 'id, start_time, event_date',
+        tasks: 'id, schedule_id, start_time',
+        todos: 'id, status, due_date'
       });
   }
 }
